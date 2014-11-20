@@ -30,7 +30,18 @@ int buffer_index = 0;
 /* obs³uga przerwañ z kontaktronu (PD3) */
 ISR(INT1_vect)
 {
-
+	/* TODO: odczyt czasu i daty z RTC, wstawienie go do rekordu */
+	
+	buffer[buffer_index] = "YYYY-MM-DD hh:mm:ss ";
+	
+	/* PD3 == 1 -> drzwi otwarte */
+	if(PIND & (1 << PD3))
+		buffer[buffer_index][20] = 'o';
+	/* PD3 == 0 -> drzwi zamkniête */
+	else
+		buffer[buffer_index][20] = 'c';
+	
+	/* TODO: rozpoczêcie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
 }
 
 
