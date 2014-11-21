@@ -6,6 +6,7 @@
  *
  *  Przycisk PB0 - rozpoczêcie operacji zmiany ustawieñ daty i czasu w RTC/przejœcie do kolejnego elementu daty lub czasu/zakoñczenie operacji zmiany...
  *  Przycisk PB1 - pojedyncze naciœniêcie zwiêkszenie o 1 bie¿¹cego elementu daty/czasu (wciœniêcie i przytrzymanie to pojedyncze naciœniêcie)
+ *                 wyjœcie poza zakres danej sk³adowej daty/czasu powoduje jej wyzerowanie
  *  TODO: opisaæ diody
  */ 
 
@@ -14,17 +15,20 @@
 
 
 
-/* 0 oznacza tryb normalny, wartoœci od 1 do 7 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 8 to oczekiwanie na potwierdzenie b¹dŸ
-anulowanie zmiany ustawieñ daty i czasu w RTC */
-int set_rtc = 0;
+/* -1 oznacza tryb normalny, wartoœci od 0 do 6 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 7 to oczekiwanie na potwierdzenie
+   b¹dŸ anulowanie zmiany ustawieñ daty i czasu w RTC */
+int set_rtc = -1;
 /* wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [6], jakie maj¹ zostaæ ustawione po zatwierdzeniu operacji zmiany tych ustawieñ */
-int set_rtc_values[7] = {0};
+unsigned int set_rtc_values[7] = {0};
+/* determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie */
+bool set_rtc_cancelled = false;
 /* rozmiar bufora (liczba 21-bajtowych elementów do przechowywania rekordów o zdarzeniach) */
 const int BUFFER_SIZE = 10;
 /* bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach */
 char buffer[BUFFER_SIZE][21] = {'\0'};
 /* przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu */
 int buffer_index = 0;
+
 
 
 /* obs³uga przerwañ z kontaktronu (PD3) */
@@ -41,7 +45,7 @@ ISR(INT1_vect)
 	else
 		buffer[buffer_index][20] = 'c';
 	
-	/* TODO: rozpoczêcie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
+	/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
 }
 
 
@@ -49,7 +53,124 @@ ISR(INT1_vect)
 /* obs³uga przerwañ z przycisków (PB2) */
 ISR(INT2_vect)
 {
-
+	/* wciœniêto przycisk PB0 */
+	if(!(PINB & 1))
+	{
+		/* przycisk PB1 nie jest wciœniêty */
+		if(PINB & 2)
+		{
+			/* jeœli pozosta³y jeszcze jakieœ sk³adowe daty/czasu do ustawienia */
+			if(set_rtc < 7)
+			{
+				/* przejœcie do nastêpnej sk³adowej */
+				++set_rtc;
+			}
+			/* jeœli nie, to urz¹dzenie oczekuje zatwierdzenia lub anulowania zmian */
+			else
+			{
+				/* jeœli anulowano, zerujemy tablicê przechowuj¹c¹ nowe ustawienia */
+				if(set_rtc_cancelled)
+				{
+					set_rtc_values[0] = 0;
+					set_rtc_values[1] = 0;
+					set_rtc_values[2] = 0;
+					set_rtc_values[3] = 0;
+					set_rtc_values[4] = 0;
+					set_rtc_values[5] = 0;
+					set_rtc_values[6] = 0;
+				}
+				/* w przeciwnym razie wysy³amy nowe ustawienia do RTC */
+				else
+				{
+					/* TODO: odczyt czasu i daty z RTC, wstawienie go do rekordu */
+					
+					if(buffer_index > BUFFER_SIZE - 2)
+					{
+						/* TODO: zapisanie danych z bufora na kartê SD razem z tymi 2 najnowszymi rekordami, które by siê do bufora nie zmieœci³y */
+						
+						buffer_index = 0;
+					}
+					else
+					{
+						buffer[buffer_index] = "YYYY-MM-DD hh:mm:ss d";
+						++buffer_index;
+						/* TODO: funkcja typu itoa, czyli zamiana int na char* (mo¿e bez zwracania, tylko przekazywanie przez argument - bêdzie proœciej) */
+						buffer[buffer_index] = "";
+						++buffer_index;
+					
+						/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
+					}
+					
+					/* TODO: wysy³anie nowych ustawieñ daty i godziny do RTC */
+				}
+				
+				/* zakoñczenie ustawieñ daty i godziny dla RTC */
+				set_rtc = -1;
+			}
+		}
+	}
+	/* wciœniêto przycisk PB1 i przycisk PB0 nie jest wciœniêty */
+	else if(!(PINB & 2))
+	{
+		if(set_rtc == 7)
+		{
+			set_rtc_cancelled = true;
+		}
+		else
+		{
+			++set_rtc_values[set_rtc];
+			
+			switch(set_rtc)
+			{
+				case 0: /* VL_seconds */
+					if(set_rtc_values[0] > 59)
+						set_rtc_values[0] = 0;
+				break;
+				case 1: /* Minutes */
+					if(set_rtc_values[1] > 59)
+						set_rtc_values[1] = 0;
+				break;
+				case 2: /* Hours */
+					if(set_rtc_values[2] > 23)
+						set_rtc_values[2] = 0;
+				break;
+				case 3: /* Days */
+					if(set_rtc_values[5] == 1 || set_rtc_values[5] == 3 || set_rtc_values[5] == 5 ||
+					   set_rtc_values[5] == 7 || set_rtc_values[5] == 8 || set_rtc_values[5] == 10 || set_rtc_values[5] == 12)
+					{
+						if(set_rtc_values[3] > 31)
+							set_rtc_values[3] = 1;
+					}
+					else if(set_rtc_values[5] == 2)
+					{
+						if((set_rtc_values[6] % 4 == 0 && set_rtc_values[6] % 100 != 0) || set_rtc_values[6] % 400 == 0)
+						{
+							if(set_rtc_values[3] > 29)
+								set_rtc_values[3] = 1;
+						}
+						else
+						{
+							if(set_rtc_values[3] > 28)
+								set_rtc_values[3] = 1;
+						}
+					}
+					else
+					{
+						if(set_rtc_values[3] > 30)
+							set_rtc_values[3] = 1;
+					}
+				break;
+				case 4: /* Weekdays */
+					if(set_rtc_values[4] > 6)
+						set_rtc_values[4] = 0;
+				break;
+				case 5: /* Century_months */
+					if(set_rtc_values[5] > 12)
+						set_rtc_values[5] = 1;
+				break;
+			}
+		}
+	}
 }
 
 
@@ -59,6 +180,9 @@ int main(void)
 	/************************************************************************/
 	/*                     Inicjalizacja urz¹dzenia                         */
 	/************************************************************************/
+	
+	/* ustawienie roku startowego */
+	set_rtc_values[6] = 2014;
 	
 	/* w³¹czenie przerwañ zewnêtrznych INT1 i INT2 */
 	GICR |= 1 << INT1;
