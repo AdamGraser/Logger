@@ -15,19 +15,70 @@
 
 
 
-/* -1 oznacza tryb normalny, wartoœci od 0 do 6 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 7 to oczekiwanie na potwierdzenie
+/* -1 oznacza tryb normalny, wartoœci od 0 do 5 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 6 to oczekiwanie na potwierdzenie
    b¹dŸ anulowanie zmiany ustawieñ daty i czasu w RTC */
 int set_rtc = -1;
-/* wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [6], jakie maj¹ zostaæ ustawione po zatwierdzeniu operacji zmiany tych ustawieñ */
-unsigned int set_rtc_values[7] = {0};
+/* wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione po zatwierdzeniu
+   operacji zmiany tych ustawieñ */
+unsigned int set_rtc_values[6] = {0};
 /* determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie */
 bool set_rtc_cancelled = false;
 /* rozmiar bufora (liczba 21-bajtowych elementów do przechowywania rekordów o zdarzeniach) */
 const int BUFFER_SIZE = 10;
 /* bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach */
-char buffer[BUFFER_SIZE][21] = {'\0'};
+char buffer[BUFFER_SIZE][22];
 /* przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu */
 int buffer_index = 0;
+
+
+
+/* Konwertuje elementy tablicy z nowymi ustawieniami daty i czasu RTC do tablic znaków.
+   Wynikowy napis, bêd¹cy tekstow¹ reprezentacj¹ nowej daty i czasu, zapisuje we wskazywanym przez 'buffer_index' elemencie bufora. */
+void NewDateTimeToString()
+{
+	char temp[5] = {'\0'};
+	
+	/* zerowanie docelowej tablicy znaków na potrzeby funkcji strcpy */
+	memset((void*)buffer[buffer_index], 0, 22);
+	
+	/* ROK */
+	/* konwersja */
+	sprintf(temp, "%d", set_rtc_values[5]);
+	/* skopiowanie sk³adowej do bufora */
+	strcpy(buffer[buffer_index], temp);
+	/* dopisanie separatora */
+	buffer[buffer_index][strlen(buffer[buffer_index])] = '-';
+	/* wyzerowanie tablicy tymczasowej */
+	temp[0] = temp[1] = temp[2] = temp[3] = '\0';
+	
+	/* MIESI¥C */
+	sprintf(temp, "%d", set_rtc_values[4]);
+	strcpy(buffer[buffer_index], temp);
+	buffer[buffer_index][strlen(buffer[buffer_index])] = '-';
+	temp[0] = temp[1] = '\0';
+	
+	/* DZIEÑ */
+	sprintf(temp, "%d", set_rtc_values[3]);
+	strcpy(buffer[buffer_index], temp);
+	buffer[buffer_index][strlen(buffer[buffer_index])] = ' ';
+	temp[0] = temp[1] = '\0';
+	
+	/* GODZINA */
+	sprintf(temp, "%d", set_rtc_values[2]);
+	strcpy(buffer[buffer_index], temp);
+	buffer[buffer_index][strlen(buffer[buffer_index])] = ':';
+	temp[0] = temp[1] = '\0';
+	
+	/* MINUTA */
+	sprintf(temp, "%d", set_rtc_values[1]);
+	strcpy(buffer[buffer_index], temp);
+	buffer[buffer_index][strlen(buffer[buffer_index])] = ':';
+	temp[0] = temp[1] = '\0';
+	
+	/* SEKUNDA */
+	sprintf(temp, "%d", set_rtc_values[0]);
+	strcpy(buffer[buffer_index], temp);
+}
 
 
 
@@ -60,7 +111,7 @@ ISR(INT2_vect)
 		if(PINB & 2)
 		{
 			/* jeœli pozosta³y jeszcze jakieœ sk³adowe daty/czasu do ustawienia */
-			if(set_rtc < 7)
+			if(set_rtc < 6)
 			{
 				/* przejœcie do nastêpnej sk³adowej */
 				++set_rtc;
@@ -77,7 +128,6 @@ ISR(INT2_vect)
 					set_rtc_values[3] = 0;
 					set_rtc_values[4] = 0;
 					set_rtc_values[5] = 0;
-					set_rtc_values[6] = 0;
 				}
 				/* w przeciwnym razie wysy³amy nowe ustawienia do RTC */
 				else
@@ -94,8 +144,7 @@ ISR(INT2_vect)
 					{
 						buffer[buffer_index] = "YYYY-MM-DD hh:mm:ss d";
 						++buffer_index;
-						/* TODO: funkcja typu itoa, czyli zamiana int na char* (mo¿e bez zwracania, tylko przekazywanie przez argument - bêdzie proœciej) */
-						buffer[buffer_index] = "";
+						NewDateTimeToString();
 						++buffer_index;
 					
 						/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
@@ -112,7 +161,7 @@ ISR(INT2_vect)
 	/* wciœniêto przycisk PB1 i przycisk PB0 nie jest wciœniêty */
 	else if(!(PINB & 2))
 	{
-		if(set_rtc == 7)
+		if(set_rtc == 6)
 		{
 			set_rtc_cancelled = true;
 		}
@@ -160,11 +209,7 @@ ISR(INT2_vect)
 							set_rtc_values[3] = 1;
 					}
 				break;
-				case 4: /* Weekdays */
-					if(set_rtc_values[4] > 6)
-						set_rtc_values[4] = 0;
-				break;
-				case 5: /* Century_months */
+				case 4: /* Century_months */
 					if(set_rtc_values[5] > 12)
 						set_rtc_values[5] = 1;
 				break;
@@ -181,8 +226,10 @@ int main(void)
 	/*                     Inicjalizacja urz¹dzenia                         */
 	/************************************************************************/
 	
+	/* wyzerowanie bufora */
+	memset((void*)buffer, 0, BUFFER_SIZE * 22);
 	/* ustawienie roku startowego */
-	set_rtc_values[6] = 2014;
+	set_rtc_values[5] = 2014;
 	
 	/* w³¹czenie przerwañ zewnêtrznych INT1 i INT2 */
 	GICR |= 1 << INT1;
