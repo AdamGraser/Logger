@@ -32,8 +32,11 @@ int buffer_index = 0;
 
 
 
-/* Konwertuje elementy tablicy z nowymi ustawieniami daty i czasu RTC do tablic znaków.
-   Wynikowy napis, bêd¹cy tekstow¹ reprezentacj¹ nowej daty i czasu, zapisuje we wskazywanym przez 'buffer_index' elemencie bufora. */
+/****************************************************************************************/
+/* Konwertuje elementy tablicy z nowymi ustawieniami daty i czasu RTC do tablic znaków. */
+/* Wynikowy napis, bêd¹cy tekstow¹ reprezentacj¹ nowej daty i czasu, zapisuje we        */
+/* wskazywanym przez 'buffer_index' elemencie bufora.                                   */
+/****************************************************************************************/
 void NewDateTimeToString()
 {
 	char temp[5] = {'\0'};
@@ -82,7 +85,9 @@ void NewDateTimeToString()
 
 
 
-/* obs³uga przerwañ z kontaktronu (PD3) */
+/************************************************************************/
+/***************** obs³uga przerwañ z kontaktronu (PD3) *****************/
+/************************************************************************/
 ISR(INT1_vect)
 {
 	/* TODO: odczyt czasu i daty z RTC, wstawienie go do rekordu */
@@ -101,7 +106,9 @@ ISR(INT1_vect)
 
 
 
-/* obs³uga przerwañ z przycisków (PB2) */
+/*************************************************************************/
+/****************** obs³uga przerwañ z przycisków (PB2) ******************/
+/*************************************************************************/
 ISR(INT2_vect)
 {
 	/* wciœniêto przycisk PB0 */
@@ -161,55 +168,63 @@ ISR(INT2_vect)
 	/* wciœniêto przycisk PB1 i przycisk PB0 nie jest wciœniêty */
 	else if(!(PINB & 2))
 	{
+		/* jeœli ustawiono ju¿ wszystkie sk³adowe daty i czasu, wciœniêcie tego przycisku oznacza anulowanie ustawieñ */
 		if(set_rtc == 6)
 		{
 			set_rtc_cancelled = true;
 		}
 		else
 		{
+			/* pojedyncze wciœniêcie przycisku to zwiêkszenie bie¿¹cej sk³adowej o 1 */
 			++set_rtc_values[set_rtc];
 			
+			/* kontrola zakresu wartoœci dla bie¿¹cej sk³adowej */
 			switch(set_rtc)
 			{
-				case 0: /* VL_seconds */
+				case 0:							/* VL_seconds */
 					if(set_rtc_values[0] > 59)
 						set_rtc_values[0] = 0;
 				break;
-				case 1: /* Minutes */
+				case 1:							/* Minutes */
 					if(set_rtc_values[1] > 59)
 						set_rtc_values[1] = 0;
 				break;
-				case 2: /* Hours */
+				case 2:							/* Hours */
 					if(set_rtc_values[2] > 23)
 						set_rtc_values[2] = 0;
 				break;
-				case 3: /* Days */
+				case 3:							/* Days */
+					/* miesi¹ce z 31 dniami */
 					if(set_rtc_values[5] == 1 || set_rtc_values[5] == 3 || set_rtc_values[5] == 5 ||
 					   set_rtc_values[5] == 7 || set_rtc_values[5] == 8 || set_rtc_values[5] == 10 || set_rtc_values[5] == 12)
 					{
 						if(set_rtc_values[3] > 31)
 							set_rtc_values[3] = 1;
 					}
+					/* luty */
 					else if(set_rtc_values[5] == 2)
 					{
+						/* w roku przestêpnym */
 						if((set_rtc_values[6] % 4 == 0 && set_rtc_values[6] % 100 != 0) || set_rtc_values[6] % 400 == 0)
 						{
 							if(set_rtc_values[3] > 29)
 								set_rtc_values[3] = 1;
 						}
+						/* w roku nieprzestêpnym */
 						else
 						{
 							if(set_rtc_values[3] > 28)
 								set_rtc_values[3] = 1;
 						}
 					}
+					/* miesi¹ce z 30 dniami */
 					else
 					{
 						if(set_rtc_values[3] > 30)
 							set_rtc_values[3] = 1;
 					}
 				break;
-				case 4: /* Century_months */
+				case 4:							/* Century_months */
 					if(set_rtc_values[5] > 12)
 						set_rtc_values[5] = 1;
 				break;
@@ -242,10 +257,10 @@ int main(void)
 	MCUCSR |= (1 << JTD);
 	MCUCSR |= (1 << JTD);
 	
-	/*************************** ustawianie pinów jako wejœciowe/wyjœciowe ****************************/
+	/*************************** ustawienia pinów ****************************/
+	#pragma region UstawieniaPinow
 	
 	/* domyœlne wartoœci w rejestrach DDRX i PORTX to 0, wpisujê wiêc tylko 1 tam, gdzie to potrzebne */
-	/* TODO: scaliæ wszystkie ustawienia pinów I/O tak, aby by³y zbiorcze, po 1 na ka¿dy port */
 	
 	/* PB7(SCK) wyjœciowy (zegar dla karty SD)
        PB6(MISO) wejœciowy (dane odbierane z karty SD)
@@ -256,13 +271,35 @@ int main(void)
        PB0 wejœciowy (przycisk)*/
 	DDRB = 1 << PB7 | 1 << PB5 | 1 << PB4;
 	PORTB = 1 << PB6 | 1 << PB2 | 1 << PB1 | 1 << PB0;
-
-	/* TODO: ustawienia dla PC1 i PC0 pod TWI (wew. pull-up'y pewnie w³¹czyæ, ale jako wej. czy wyj?) */
-
+	
+	/* PC1 (SDA) i PC0 (SCL) s¹ wykorzystywane przez TWI, wiêc w³¹czam wewnêtrzne rezystory podci¹gaj¹ce */
+	PORTC = 1 << PC1 | 1 << PC0;
+	
 	/* PD7 i PD6 wyjœciowe (diody)
        PD3(INT1) wejœciowy (przerwania zewnêtrzne od kontaktronu) */
 	DDRD = 1 << PD7 | 1 << PD6;
 	PORTD = 1 << PD3;
+	
+	#pragma endregion UstawieniaPinow
+	
+	/**************************** ustawienia TWI *****************************/
+	#pragma region UstawieniaTWI
+
+	/* w³¹czam TWI (ustawienie bitu TWEN - TWI ENable)
+	   w³¹czam wystêpowanie bitu potwierdzenia (ustawienie bitu TWEA - TWI Enable Acknowledge bit)
+	   w³¹czam TWI mo¿liwoœæ wywo³ywania przerwañ (ustawienie bitu TWIE - TWI Interrupt Enable)
+	   TWCR - TWI Control Register */
+	TWCR |= 1 << TWEA | 1 << TWEN | 1 << TWIE;
+	
+	/* ustawienie czêstotliwoœci dla TWI:
+	   SCL frequency = CPU Clock frequency / (16 + 2(TWBR) * 4^TWPS)
+	   dla TWBR = 0 i TWPS = 00 (wartoœci domyœlne) powy¿sze równanie da dzielnik równy 16
+	   przy wewnêtrznym zegarze Atmegi taktuj¹cym z czêst. 1 MHz, otrzymam dla TWI czêst. 62,5 KHz
+	   TWBR - TWI Bit rate Register
+	   TWSR - TWI Status Register:
+	       TWSR1:0 -> TWPS1, TWPS0 - TWI PreScaler bits */
+	
+	#pragma endregion UstawieniaTWI
 	
 	/* w³¹czenie przerwañ */
 	sei();
@@ -270,7 +307,7 @@ int main(void)
 	/************************************************************************/
 	/*                       pêtla g³ówna programu                          */
 	/************************************************************************/
-    while(1)
+    for(;;)
     {
         
     }
