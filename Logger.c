@@ -57,8 +57,8 @@ int buffer_index = 0;
 
 
 /****************************************************************************************/
-/* Konwertuje elementy tablicy z nowymi ustawieniami daty i czasu RTC do tablic znaków. */
-/* Wynikowy napis, bêd¹cy tekstow¹ reprezentacj¹ nowej daty i czasu, zapisuje we        */
+/* Konwersja elementów tablicy z nowymi ustawieniami daty i czasu RTC do tablic znaków. */
+/* Wynikowy napis, bêd¹cy tekstow¹ reprezentacj¹ nowej daty i czasu, zapisywany jest we */
 /* wskazywanym przez 'buffer_index' elemencie bufora.                                   */
 /****************************************************************************************/
 void NewDateTimeToString()
@@ -110,7 +110,7 @@ void NewDateTimeToString()
 
 
 /************************************************************************/
-/***************** obs³uga przerwañ z kontaktronu (PD3) *****************/
+/***************** Obs³uga przerwañ z kontaktronu (PD3) *****************/
 /************************************************************************/
 ISR(INT1_vect)
 {
@@ -131,7 +131,7 @@ ISR(INT1_vect)
 
 
 /*************************************************************************/
-/****************** obs³uga przerwañ z przycisków (PB2) ******************/
+/****************** Obs³uga przerwañ z przycisków (PB2) ******************/
 /*************************************************************************/
 ISR(INT2_vect)
 {
