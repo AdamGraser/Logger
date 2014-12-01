@@ -15,7 +15,6 @@
 
 
 
-/* zmienne globalne, sta³e, makra */
 #pragma region ZmienneStaleMakra
 
 /* sta³e u¿ywane jako indeksy tablicy set_rtc_values, dla zwiêkszenia przejrzystoœci */
