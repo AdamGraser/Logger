@@ -13,6 +13,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint-gcc.h>
+#include "rtc.h"
 
 
 
@@ -42,6 +43,9 @@ uint8_t set_rtc_values[6];
 /// Determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie.
 bool set_rtc_cancelled = false;
 
+/// Przechowuje datê i czas pobrane z RTC.
+time now;
+
 /// Rozmiar bufora (liczba 22-bajtowych elementów do przechowywania rekordów o zdarzeniach).
 const int8_t BUFFER_SIZE = 10;
 
@@ -67,17 +71,19 @@ uint8_t buffer_index = 0;
 
 
 /**
- * Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora stringow¹ reprezentacjê nowych ustawieñ daty i czasu dla RTC,
- * przechowywanych w tablicy set_rtc_values.
+ * Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora rekord o zarejestrowanym przez urz¹dzenie zdarzeniu.
+ * @param event Znak reprezentuj¹cy rodzaj zdarzenia zarejestrowany przez urz¹dzenie.
+ * @see W dokumentacji urz¹dzenia znajduje siê lista zdarzeñ wraz z symbolami.
  */
-void NewDateTimeToString()
+void SaveEvent(char event)
 {
-	/* zerowanie docelowej tablicy znaków na potrzeby funkcji strcpy */
-	memset((void*)buffer[buffer_index], 0, 20);
+	/* TODO: RtcGetTime */
 	
-	/* zapisywanie w buforze stringowej reprezentacji daty i czasu w formacie YY-MM-DD HH:ii:SS */
-	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
-		set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
+	/* zapisywanie w buforze daty i czasu z RTC oraz symbolu zdarzenia jako napis o formacie "YY-MM-DD HH:ii:SS c" */
+	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
+		now.hours, now.minutes, now.seconds, event);
+	
+	++buffer_index;
 }
 
 
@@ -144,14 +150,19 @@ ISR(INT2_vect)
 					else
 					{
 						buffer[buffer_index] = "YY-MM-DD hh:mm:ss d";
+						
 						++buffer_index;
-						NewDateTimeToString();
+						
+						/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
+						sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
+							set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
+						
 						++buffer_index;
 					
 						/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
 					}
 					
-					/* TODO: wysy³anie nowych ustawieñ daty i godziny do RTC */
+					/* TODO: RtcSetTime */
 				}
 				
 				/* zakoñczenie ustawieñ daty i godziny dla RTC */
