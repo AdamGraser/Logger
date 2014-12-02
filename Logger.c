@@ -28,6 +28,7 @@
 /* -1 oznacza tryb normalny, wartoœci od 0 do 5 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 6 to oczekiwanie na potwierdzenie
    b¹dŸ anulowanie zmiany ustawieñ daty i czasu w RTC */
 int set_rtc = -1;
+/* TODO: uwzglêdniæ to, ¿e rok w tym RTC jest dwucyfrowy, a nie cztero */
 /* wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione po zatwierdzeniu
    operacji zmiany tych ustawieñ */
 unsigned int set_rtc_values[6];
