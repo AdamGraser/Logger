@@ -67,54 +67,17 @@ uint8_t buffer_index = 0;
 
 
 /**
- * Konwersja elementów tablicy z nowymi ustawieniami daty i czasu RTC do tablic znaków.
- * Wynikowy napis, bêd¹cy tekstow¹ reprezentacj¹ nowej daty i czasu, zapisywany jest we
- * wskazywanym przez 'buffer_index' elemencie bufora.
+ * Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora stringow¹ reprezentacjê nowych ustawieñ daty i czasu dla RTC,
+ * przechowywanych w tablicy set_rtc_values.
  */
 void NewDateTimeToString()
 {
-	char temp[3] = {'\0'};
-	
 	/* zerowanie docelowej tablicy znaków na potrzeby funkcji strcpy */
 	memset((void*)buffer[buffer_index], 0, 20);
 	
-	/* ROK */
-	    /* konwersja */
-	sprintf(temp, "%d", set_rtc_values[Years]);
-	    /* skopiowanie sk³adowej do bufora */
-	strcpy(buffer[buffer_index], temp);
-	    /* dopisanie separatora */
-	buffer[buffer_index][strlen(buffer[buffer_index])] = '-';
-	    /* wyzerowanie tablicy tymczasowej */
-	temp[0] = temp[1] = '\0';
-	
-	/* MIESI¥C */
-	sprintf(temp, "%d", set_rtc_values[Century_months]);
-	strcpy(buffer[buffer_index], temp);
-	buffer[buffer_index][strlen(buffer[buffer_index])] = '-';
-	temp[0] = temp[1] = '\0';
-	
-	/* DZIEÑ */
-	sprintf(temp, "%d", set_rtc_values[Days]);
-	strcpy(buffer[buffer_index], temp);
-	buffer[buffer_index][strlen(buffer[buffer_index])] = ' ';
-	temp[0] = temp[1] = '\0';
-	
-	/* GODZINA */
-	sprintf(temp, "%d", set_rtc_values[Hours]);
-	strcpy(buffer[buffer_index], temp);
-	buffer[buffer_index][strlen(buffer[buffer_index])] = ':';
-	temp[0] = temp[1] = '\0';
-	
-	/* MINUTA */
-	sprintf(temp, "%d", set_rtc_values[Minutes]);
-	strcpy(buffer[buffer_index], temp);
-	buffer[buffer_index][strlen(buffer[buffer_index])] = ':';
-	temp[0] = temp[1] = '\0';
-	
-	/* SEKUNDA */
-	sprintf(temp, "%d", set_rtc_values[VL_seconds]);
-	strcpy(buffer[buffer_index], temp);
+	/* zapisywanie w buforze stringowej reprezentacji daty i czasu w formacie YY-MM-DD HH:ii:SS */
+	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
+		set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
 }
 
 
