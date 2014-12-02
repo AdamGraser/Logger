@@ -12,6 +12,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <stdint-gcc.h>
 
 
 
@@ -30,27 +31,25 @@
  * Wartoœæ -1 oznacza tryb normalny, wartoœci od 0 do 5 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 6 to oczekiwanie na potwierdzenie
  * b¹dŸ anulowanie zmiany ustawieñ daty i czasu w RTC.
  */
-int set_rtc = -1;
-
-/* TODO: uwzglêdniæ to, ¿e rok w tym RTC jest dwucyfrowy, a nie cztero */
+int8_t set_rtc = -1;
 
 /**
  * Wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione w RTC po zatwierdzeniu
  * operacji zmiany tych ustawieñ.
  */
-unsigned int set_rtc_values[6];
+uint8_t set_rtc_values[6];
 
 /// Determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie.
 bool set_rtc_cancelled = false;
 
 /// Rozmiar bufora (liczba 22-bajtowych elementów do przechowywania rekordów o zdarzeniach).
-const int BUFFER_SIZE = 10;
+const int8_t BUFFER_SIZE = 10;
 
 /// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
-char buffer[BUFFER_SIZE][22];
+char buffer[BUFFER_SIZE][20];
 
 /// Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu.
-int buffer_index = 0;
+uint8_t buffer_index = 0;
 
 /// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
 #define RTCDefaultValues()
@@ -60,7 +59,7 @@ int buffer_index = 0;
 	set_rtc_values[Hours] = 0;
 	set_rtc_values[Days] = 1;
 	set_rtc_values[Century_months] = 1;
-	set_rtc_values[Years] = 2014;
+	set_rtc_values[Years] = 14;
 }
 
 #pragma endregion ZmienneStaleMakra
@@ -74,10 +73,10 @@ int buffer_index = 0;
  */
 void NewDateTimeToString()
 {
-	char temp[5] = {'\0'};
+	char temp[3] = {'\0'};
 	
 	/* zerowanie docelowej tablicy znaków na potrzeby funkcji strcpy */
-	memset((void*)buffer[buffer_index], 0, 22);
+	memset((void*)buffer[buffer_index], 0, 20);
 	
 	/* ROK */
 	    /* konwersja */
@@ -87,7 +86,7 @@ void NewDateTimeToString()
 	    /* dopisanie separatora */
 	buffer[buffer_index][strlen(buffer[buffer_index])] = '-';
 	    /* wyzerowanie tablicy tymczasowej */
-	temp[0] = temp[1] = temp[2] = temp[3] = '\0';
+	temp[0] = temp[1] = '\0';
 	
 	/* MIESI¥C */
 	sprintf(temp, "%d", set_rtc_values[Century_months]);
@@ -128,14 +127,14 @@ ISR(INT1_vect)
 {
 	/* TODO: odczyt czasu i daty z RTC, wstawienie go do rekordu */
 	
-	buffer[buffer_index] = "YYYY-MM-DD hh:mm:ss ";
+	buffer[buffer_index] = "YY-MM-DD hh:mm:ss ";
 	
 	/* PD3 == 1 -> drzwi otwarte */
 	if(PIND & (1 << PD3))
-		buffer[buffer_index][20] = 'o';
+		buffer[buffer_index][18] = 'o';
 	/* PD3 == 0 -> drzwi zamkniête */
 	else
-		buffer[buffer_index][20] = 'c';
+		buffer[buffer_index][18] = 'c';
 	
 	/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
 }
@@ -181,7 +180,7 @@ ISR(INT2_vect)
 					}
 					else
 					{
-						buffer[buffer_index] = "YYYY-MM-DD hh:mm:ss d";
+						buffer[buffer_index] = "YY-MM-DD hh:mm:ss d";
 						++buffer_index;
 						NewDateTimeToString();
 						++buffer_index;
@@ -237,7 +236,7 @@ ISR(INT2_vect)
 					else if(set_rtc_values[Century_months] == 2)
 					{
 						/* w roku przestêpnym */
-						if((set_rtc_values[Years] % 4 == 0 && set_rtc_values[Years] % 100 != 0) || set_rtc_values[Years] % 400 == 0)
+						if((set_rtc_values[Years] % 4 == 0)
 						{
 							if(set_rtc_values[Days] > 29)
 								set_rtc_values[3] = 1;
@@ -260,6 +259,10 @@ ISR(INT2_vect)
 					if(set_rtc_values[Century_months] > 12)
 						set_rtc_values[Century_months] = 1;
 				break;
+				case 5:							/* Years */
+					if(set_rtc_values[Years] > 99)
+						set_rtc_values[Years] = 0;
+				break;
 			}
 		}
 	}
@@ -275,7 +278,7 @@ int main(void)
 	/************************************************************************/
 	
 	/* wyzerowanie bufora */
-	memset((void*)buffer, 0, BUFFER_SIZE * 22);
+	memset((void*)buffer, 0, BUFFER_SIZE * 20);
 	/* ustawienie wartoœci domyœlnych w tablicy ustawieñ daty i godziny dla RTC */
 	RTCDefaultValues();
 	

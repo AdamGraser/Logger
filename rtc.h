@@ -1,6 +1,7 @@
 #ifndef RTC_H
 #define RTC_H
 
+#include <stdint-gcc.h>
 
 
 #pragma region ZmienneStaleMakra
@@ -11,7 +12,6 @@
  * @field minutes minuty
  * @field hours godziny
  * @field days dni
- * @field weekdays dni tygodnia
  * @field months miesi¹ce
  * @field years lata
  */
@@ -20,7 +20,6 @@ typedef struct {
 	uint8_t minutes;
 	uint8_t hours;
 	uint8_t days;
-	uint8_t weekdays;
 	uint8_t months;
 	uint8_t years;
 } time;
