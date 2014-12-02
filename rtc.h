@@ -6,6 +6,14 @@
 
 #pragma region ZmienneStaleMakra
 
+/* sta³e u¿ywane jako indeksy tablicy set_rtc_values, dla zwiêkszenia przejrzystoœci kodu */
+#define VL_seconds 0
+#define Minutes 1
+#define Hours 2
+#define Days 3
+#define Century_months 4
+#define Years 5
+
 /**
  * Reprezentuje obiekt typu DateTime (przechowuje sk³adowe daty i czasu).
  * @field seconds sekundy
@@ -47,16 +55,16 @@ void TwiWrite(uint8_t data);
 uint8_t TwiRead(uint8_t ack);
 
 /**
- * Pobranie bie¿¹cych daty i czasu z zegara RTC PCF8563P
- * @return data i czas wys³ane przez RTC
+ * Pobranie bie¿¹cej daty i czasu z zegara RTC PCF8563P
+ * @param buf adres struktury, do której zapisane maj¹ zostaæ data i czas pobrane z RTC
  */
-time RtcGetTime (void);
+void RtcGetTime (time *buf);
 
 /**
  * Wys³anie do zegara RTC PCF8563P nowych ustawieñ daty i czasu
  * @param data nowe ustawienia daty i czasu dla RTC
  */
-void RtcSetTime (time data);
+void RtcSetTime (uint8_t *data);
 
 
 

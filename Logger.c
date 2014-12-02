@@ -19,14 +19,6 @@
 
 #pragma region ZmienneStaleMakra
 
-/* sta³e u¿ywane jako indeksy tablicy set_rtc_values, dla zwiêkszenia przejrzystoœci kodu */
-#define VL_seconds 0
-#define Minutes 1
-#define Hours 2
-#define Days 3
-#define Century_months 4
-#define Years 5
-
 /**
  * Oznaczenie trybu pracy urz¹dzenia.<br>
  * Wartoœæ -1 oznacza tryb normalny, wartoœci od 0 do 5 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 6 to oczekiwanie na potwierdzenie
