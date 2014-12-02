@@ -317,10 +317,8 @@ int main(void)
 #pragma region UstawieniaTWI
 
 	/* w³¹czam TWI (ustawienie bitu TWEN - TWI ENable)
-	   w³¹czam wystêpowanie bitu potwierdzenia (ustawienie bitu TWEA - TWI Enable Acknowledge bit)
-	   w³¹czam TWI mo¿liwoœæ wywo³ywania przerwañ (ustawienie bitu TWIE - TWI Interrupt Enable)
 	   TWCR - TWI Control Register */
-	TWCR |= 1 << TWEA | 1 << TWEN | 1 << TWIE;
+	TWCR |= 1 << TWEA;
 	
 	/* ustawienie czêstotliwoœci dla TWI:
 	   SCL frequency = CPU Clock frequency / (16 + 2(TWBR) * 4^TWPS)
