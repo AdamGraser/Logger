@@ -17,7 +17,7 @@
 
 #pragma region ZmienneStaleMakra
 
-/* sta³e u¿ywane jako indeksy tablicy set_rtc_values, dla zwiêkszenia przejrzystoœci */
+/* sta³e u¿ywane jako indeksy tablicy set_rtc_values, dla zwiêkszenia przejrzystoœci kodu */
 #define VL_seconds 0
 #define Minutes 1
 #define Hours 2
@@ -25,23 +25,34 @@
 #define Century_months 4
 #define Years 5
 
-/* -1 oznacza tryb normalny, wartoœci od 0 do 5 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 6 to oczekiwanie na potwierdzenie
-   b¹dŸ anulowanie zmiany ustawieñ daty i czasu w RTC */
+/**
+ * Oznaczenie trybu pracy urz¹dzenia.<br>
+ * Wartoœæ -1 oznacza tryb normalny, wartoœci od 0 do 5 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 6 to oczekiwanie na potwierdzenie
+ * b¹dŸ anulowanie zmiany ustawieñ daty i czasu w RTC.
+ */
 int set_rtc = -1;
+
 /* TODO: uwzglêdniæ to, ¿e rok w tym RTC jest dwucyfrowy, a nie cztero */
-/* wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione po zatwierdzeniu
-   operacji zmiany tych ustawieñ */
+
+/**
+ * Wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione w RTC po zatwierdzeniu
+ * operacji zmiany tych ustawieñ.
+ */
 unsigned int set_rtc_values[6];
-/* determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie */
+
+/// Determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie.
 bool set_rtc_cancelled = false;
-/* rozmiar bufora (liczba 21-bajtowych elementów do przechowywania rekordów o zdarzeniach) */
+
+/// Rozmiar bufora (liczba 22-bajtowych elementów do przechowywania rekordów o zdarzeniach).
 const int BUFFER_SIZE = 10;
-/* bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach */
+
+/// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
 char buffer[BUFFER_SIZE][22];
-/* przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu */
+
+/// Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu.
 int buffer_index = 0;
 
-/* makro ustawiaj¹ce wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC */
+/// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
 #define RTCDefaultValues()
 {
 	set_rtc_values[VL_seconds] = 0;
@@ -56,11 +67,11 @@ int buffer_index = 0;
 
 
 
-/****************************************************************************************/
-/* Konwersja elementów tablicy z nowymi ustawieniami daty i czasu RTC do tablic znaków. */
-/* Wynikowy napis, bêd¹cy tekstow¹ reprezentacj¹ nowej daty i czasu, zapisywany jest we */
-/* wskazywanym przez 'buffer_index' elemencie bufora.                                   */
-/****************************************************************************************/
+/**
+ * Konwersja elementów tablicy z nowymi ustawieniami daty i czasu RTC do tablic znaków.
+ * Wynikowy napis, bêd¹cy tekstow¹ reprezentacj¹ nowej daty i czasu, zapisywany jest we
+ * wskazywanym przez 'buffer_index' elemencie bufora.
+ */
 void NewDateTimeToString()
 {
 	char temp[5] = {'\0'};
@@ -109,9 +120,10 @@ void NewDateTimeToString()
 
 
 
-/************************************************************************/
-/***************** Obs³uga przerwañ z kontaktronu (PD3) *****************/
-/************************************************************************/
+/**
+ * Obs³uga przerwañ z kontaktronu (PD3).
+ * @param INT1_vect Wektor przerwania zewnêtrznego INT1.
+ */
 ISR(INT1_vect)
 {
 	/* TODO: odczyt czasu i daty z RTC, wstawienie go do rekordu */
@@ -130,9 +142,10 @@ ISR(INT1_vect)
 
 
 
-/*************************************************************************/
-/****************** Obs³uga przerwañ z przycisków (PB2) ******************/
-/*************************************************************************/
+/**
+ * Obs³uga przerwañ z przycisków (PB2).
+ * @param INT2_vect Wektor przerwania zewnêtrznego INT2.
+ */
 ISR(INT2_vect)
 {
 	/* wciœniêto przycisk PB0 */
@@ -254,6 +267,7 @@ ISR(INT2_vect)
 
 
 
+/// Funkcja g³ówna programu.
 int main(void)
 {
 	/************************************************************************/
