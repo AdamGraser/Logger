@@ -12,6 +12,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/pgmspace.h>
 #include <stdint-gcc.h>
 #include "rtc.h"
 
@@ -47,6 +48,28 @@ char buffer[BUFFER_SIZE][20];
 /// Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu.
 uint8_t buffer_index = 0;
 
+#pragma region DefinicjeNazwZdarzen
+
+/// Nazwa zdarzenia otwarcia drzwi.
+char event_name1[] PROGMEM = "opened";
+/// Nazwa zdarzenia zamkniêcia drzwi.
+char event_name2[] PROGMEM = "closed";
+/// Nazwa zdarzenia w³¹czenia urz¹dzenia.
+char event_name3[] PROGMEM = "turned on";
+/// Nazwa zdarzenia wykrycia karty SD.
+char event_name4[] PROGMEM = "SD inserted";
+/// Nazwa zdarzenia wykrycia braku systemu plików, który mo¿na zamontowaæ.
+char event_name5[] PROGMEM = "no file system";
+/// Nazwa zdarzenia b³êdu po³¹czenia z kart¹ SD.
+char event_name6[] PROGMEM = "connection error";
+/// Nazwa zdarzenia zmiany ustawieñ daty i czasu w RTC.
+char event_name7[] PROGMEM = "date time changed";
+
+#pragma endregion DefinicjeNazwZdarzen
+
+/// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
+PGM_P events_names[] PROGMEM = {event_name1, event_name2, event_name3, event_name4, event_name5, event_name6, event_name7};
+
 /// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
 #define RTCDefaultValues()
 {
@@ -65,8 +88,8 @@ uint8_t buffer_index = 0;
 /**
  * Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora rekord o zarejestrowanym przez urz¹dzenie zdarzeniu.<br>
  * Je¿eli bufor jest zape³niony, wymusza zapisanie jego zawartoœci na karcie SD.
- * @param event Znak reprezentuj¹cy rodzaj zdarzenia zarejestrowany przez urz¹dzenie.
- * @see W dokumentacji urz¹dzenia znajduje siê lista zdarzeñ wraz z symbolami.
+ * @param event Kod reprezentuj¹cy rodzaj zdarzenia zarejestrowany przez urz¹dzenie.
+ * @see W dokumentacji urz¹dzenia znajduje siê lista zdarzeñ wraz z kodami.
  */
 void SaveEvent(char event)
 {
@@ -99,8 +122,10 @@ void SaveBuffer()
 	{
 		if(strlen(buffer[i]) > 0)
 		{
-			/* UNDONE: zapis na kartê SD napisu buffer[i], po zamianie symbolu zdarzenia na jego nazwê */
-			/* trzeba tutaj bêdzie sprawdzaæ czy symbolem tym jest 'd' i jeœli tak, to od razu przejœæ do nastêpnego elementu i zapisaæ go */
+			/* UNDONE: zapis na kartê SD napisu buffer[i], po zamianie kodu zdarzenia na jego nazwê */
+			/* trzeba tutaj bêdzie sprawdzaæ czy kodem tym jest 6 i jeœli tak, to po zapisie od razu przejœæ do nastêpnego elementu i te¿ go zapisaæ (nowa data i czas) */
+			/* trzeba bêdzie u¿ywaæ tymczasowej tablicy albo mieæ tylko wskaŸnik char*, wstawiæ na miejsce kodu zdarzenia \0, zapisaæ tak rekord ze spacj¹ na koñcu,
+			 * a potem tylko dopisaæ pobran¹ z pamiêci programu nazwê zdarzenia i \n */
 		
 			/* wyczyszczenie elementu bufora */
 			memset((void*)buffer[i], 0, 20);
@@ -127,9 +152,9 @@ ISR(INT1_vect)
 	/* zapisanie do bufora rekordu o zdarzeniu */
 	
 	if(PIND & (1 << PD3))	/* PD3 == 1 -> drzwi otwarte */
-		SaveEvent('o');
+		SaveEvent(0);
 	else					/* PD3 == 0 -> drzwi zamkniête */
-		SaveEvent('c');
+		SaveEvent(1);
 	
 	/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
 }
@@ -172,7 +197,7 @@ ISR(INT2_vect)
 					}
 					
 					/* zapisanie do bufora rekordu o zdarzeniu */
-					SaveEvent('d');
+					SaveEvent(6);
 						
 					/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
 					sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
