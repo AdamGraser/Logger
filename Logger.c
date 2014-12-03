@@ -63,13 +63,17 @@ uint8_t buffer_index = 0;
 
 
 /**
- * Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora rekord o zarejestrowanym przez urz¹dzenie zdarzeniu.
+ * Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora rekord o zarejestrowanym przez urz¹dzenie zdarzeniu.<br>
+ * Je¿eli bufor jest zape³niony, wymusza zapisanie jego zawartoœci na karcie SD.
  * @param event Znak reprezentuj¹cy rodzaj zdarzenia zarejestrowany przez urz¹dzenie.
  * @see W dokumentacji urz¹dzenia znajduje siê lista zdarzeñ wraz z symbolami.
  */
 void SaveEvent(char event)
 {
-	/* TODO: RtcGetTime */
+	RtcGetTime(&now);
+	
+	if(buffer_index == BUFFER_SIZE)
+		SaveBuffer();
 	
 	/* zapisywanie w buforze daty i czasu z RTC oraz symbolu zdarzenia jako napis o formacie "YY-MM-DD HH:ii:SS c" */
 	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
@@ -80,22 +84,52 @@ void SaveEvent(char event)
 
 
 
+/// Zapisuje dane z bufora na kartê SD, czyœci go oraz przesuwa wskaŸnik w buforze na pocz¹tek.
+void SaveBuffer()
+{
+	uint8_t i = 0;
+	
+	/* ta operacja nie mo¿e zostaæ przerwana */
+	cli();
+	
+	/* TODO: jakaœ inicjalizacja tej karty, mo¿e montowanie FS itp. */
+	
+	/* zapisujemy na karcie SD rekordy z bufora (zawartoœæ niepustych elementów bufora) */
+	for(i = 0; i < BUFFER_SIZE; ++i)
+	{
+		if(strlen(buffer[i]) > 0)
+		{
+			/* UNDONE: zapis na kartê SD napisu buffer[i], po zamianie symbolu zdarzenia na jego nazwê */
+			/* trzeba tutaj bêdzie sprawdzaæ czy symbolem tym jest 'd' i jeœli tak, to od razu przejœæ do nastêpnego elementu i zapisaæ go */
+		
+			/* wyczyszczenie elementu bufora */
+			memset((void*)buffer[i], 0, 20);
+		}
+		else
+			break;
+	}
+	
+	/* ustawienie wskaŸnika w buforze na pocz¹tek */
+	buffer_index = 0;
+	
+	/* ponowne w³¹czenie przerwañ */
+	sei();
+}
+
+
+
 /**
  * Obs³uga przerwañ z kontaktronu (PD3).
  * @param INT1_vect Wektor przerwania zewnêtrznego INT1.
  */
 ISR(INT1_vect)
 {
-	/* TODO: odczyt czasu i daty z RTC, wstawienie go do rekordu */
+	/* zapisanie do bufora rekordu o zdarzeniu */
 	
-	buffer[buffer_index] = "YY-MM-DD hh:mm:ss ";
-	
-	/* PD3 == 1 -> drzwi otwarte */
-	if(PIND & (1 << PD3))
-		buffer[buffer_index][18] = 'o';
-	/* PD3 == 0 -> drzwi zamkniête */
-	else
-		buffer[buffer_index][18] = 'c';
+	if(PIND & (1 << PD3))	/* PD3 == 1 -> drzwi otwarte */
+		SaveEvent('o');
+	else					/* PD3 == 0 -> drzwi zamkniête */
+		SaveEvent('c');
 	
 	/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
 }
@@ -131,30 +165,26 @@ ISR(INT2_vect)
 				/* w przeciwnym razie wysy³amy nowe ustawienia do RTC */
 				else
 				{
-					/* TODO: odczyt czasu i daty z RTC, wstawienie go do rekordu */
-					
+					/* jeœli w buforze brak miejsca na 2 rekordy, nale¿y zapisaæ jego zawartoœæ na kartê SD */
 					if(buffer_index > BUFFER_SIZE - 2)
 					{
-						/* TODO: zapisanie danych z bufora na kartê SD razem z tymi 2 najnowszymi rekordami, które by siê do bufora nie zmieœci³y */
-						
-						buffer_index = 0;
-					}
-					else
-					{
-						buffer[buffer_index] = "YY-MM-DD hh:mm:ss d";
-						
-						++buffer_index;
-						
-						/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
-						sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
-							set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
-						
-						++buffer_index;
-					
-						/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
+						SaveBuffer();
 					}
 					
-					/* TODO: RtcSetTime */
+					/* zapisanie do bufora rekordu o zdarzeniu */
+					SaveEvent('d');
+						
+					/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
+					sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
+						set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
+						
+					/* przesuniêcie wskaŸnika w buforze o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
+					++buffer_index;
+					
+					/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
+					
+					/* zapisanie w RTC nowych ustawieñ daty i godziny */
+					RtcSetTime(set_rtc_values);
 				}
 				
 				/* zakoñczenie ustawieñ daty i godziny dla RTC */
