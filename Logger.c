@@ -303,6 +303,8 @@ int main(void)
 	/* ustawienie wartoœci domyœlnych w tablicy ustawieñ daty i godziny dla RTC */
 	RTCDefaultValues();
 	
+	/* TODO: Rekord informacyjny zapisaæ ma równie¿ po w³¹czeniu urz¹dzenia, a przed jakimkolwiek innym zdarzeniem */
+	
 	/* w³¹czenie przerwañ zewnêtrznych INT1 i INT2 */
 	GICR |= 1 << INT1;
 	GICR |= 1 << INT2;
