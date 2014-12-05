@@ -7,7 +7,9 @@
  *  Przycisk PB0 - rozpoczêcie operacji zmiany ustawieñ daty i czasu w RTC/przejœcie do kolejnego elementu daty lub czasu/zakoñczenie operacji zmiany...
  *  Przycisk PB1 - pojedyncze naciœniêcie zwiêkszenie o 1 bie¿¹cego elementu daty/czasu (wciœniêcie i przytrzymanie to pojedyncze naciœniêcie)
  *                 wyjœcie poza zakres danej sk³adowej daty/czasu powoduje jej wyzerowanie
- *  TODO: opisaæ diody
+ *  
+ *  Dioda LED1 PD7 - sygnalizacja dzia³ania urz¹dzenia ci¹g³ym œwieceniem
+ *  Dioda LED2 PD6 - sygnalizacja trwania operacji zapisu danych na kartê SD ci¹g³ym œwieceniem w trakcie trwania operacji
  */ 
 
 #include <avr/io.h>
@@ -102,6 +104,8 @@ void SaveEvent(char event)
 	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
 		now.hours, now.minutes, now.seconds, event);
 	
+	/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
+	
 	++buffer_index;
 }
 
@@ -116,6 +120,9 @@ void SaveBuffer()
 	cli();
 	
 	/* TODO: jakaœ inicjalizacja tej karty, mo¿e montowanie FS itp. */
+	
+	/* oœwiecenie diody LED2 (czerwonej) */
+	PORTD |= 1 << PD6;
 	
 	/* zapisujemy na karcie SD rekordy z bufora (zawartoœæ niepustych elementów bufora) */
 	for(i = 0; i < BUFFER_SIZE; ++i)
@@ -133,6 +140,9 @@ void SaveBuffer()
 		else
 			break;
 	}
+	
+	/* zgaszenie diody LED2 (czerwonej) */
+	PORTD &= 191;
 	
 	/* ustawienie wskaŸnika w buforze na pocz¹tek */
 	buffer_index = 0;
@@ -155,8 +165,6 @@ ISR(INT1_vect)
 		SaveEvent(0);
 	else					/* PD3 == 0 -> drzwi zamkniête */
 		SaveEvent(1);
-	
-	/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
 }
 
 
@@ -206,8 +214,6 @@ ISR(INT2_vect)
 					/* przesuniêcie wskaŸnika w buforze o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
 					++buffer_index;
 					
-					/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
-					
 					/* zapisanie w RTC nowych ustawieñ daty i godziny */
 					RtcSetTime(set_rtc_values);
 				}
@@ -230,7 +236,8 @@ ISR(INT2_vect)
 			/* pojedyncze wciœniêcie przycisku to zwiêkszenie bie¿¹cej sk³adowej o 1 */
 			++set_rtc_values[set_rtc];
 			
-			/* kontrola zakresu wartoœci dla bie¿¹cej sk³adowej */
+#pragma region KontrolaZakresuDatyICzasu
+
 			switch(set_rtc)
 			{
 				case 0:							/* VL_seconds */
@@ -285,6 +292,9 @@ ISR(INT2_vect)
 						set_rtc_values[Years] = 0;
 				break;
 			}
+
+#pragma endregion KontrolaZakresuDatyICzasu
+
 		}
 	}
 }
@@ -294,6 +304,12 @@ ISR(INT2_vect)
 /// Funkcja g³ówna programu.
 int main(void)
 {
+	/* zapisanie informacji o w³¹czeniu urz¹dzenia */
+	SaveEvent(2);
+	
+	/* oœwiecenie diody LED1 (zielonej) */
+	PORTD |= 1 << PD7;
+	
 	/************************************************************************/
 	/*                     Inicjalizacja urz¹dzenia                         */
 	/************************************************************************/
@@ -302,8 +318,6 @@ int main(void)
 	memset((void*)buffer, 0, BUFFER_SIZE * 20);
 	/* ustawienie wartoœci domyœlnych w tablicy ustawieñ daty i godziny dla RTC */
 	RTCDefaultValues();
-	
-	/* TODO: Rekord informacyjny zapisaæ ma równie¿ po w³¹czeniu urz¹dzenia, a przed jakimkolwiek innym zdarzeniem */
 	
 	/* w³¹czenie przerwañ zewnêtrznych INT1 i INT2 */
 	GICR |= 1 << INT1;
