@@ -104,7 +104,12 @@ void SaveEvent(char event)
 	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
 		now.hours, now.minutes, now.seconds, event);
 	
-	/* TODO: rozpoczêcie/zrestartowanie (lub wymuszenie na pêtli g³ównej programu rozpoczêcia) odliczania czasu do zapisu danych z bufora na kartê SD */
+	/* w³¹czenie Timera/Countera 1, ustawienie jego preskalera na 1024 */
+	TCCR1B = 1 << CS12 | 1 << CS10;
+	
+	/* przy zegarze taktuj¹cym z czêst. 1 MHz, z preskalerem 1024, w ci¹gu 30 sekund licznik naliczy prawie 29297,
+	 * dlatego ustawi³em tutaj wartoœæ 65535 (max) - 29296, aby przy 29297-mej inkrementacji nast¹pi³o przepe³nienie licznika, co wywo³a przerwanie */
+	TCNT1 = 36239;
 	
 	++buffer_index;
 }
@@ -154,7 +159,8 @@ void SaveBuffer()
 
 
 /**
- * Obs³uga przerwañ z kontaktronu (PD3).
+ * Obs³uga przerwañ z kontaktronu (PD3).<br>
+ * Rejestrowanie zdarzenia otwarcia/zamkniêcia drzwi.
  * @param INT1_vect Wektor przerwania zewnêtrznego INT1.
  */
 ISR(INT1_vect)
@@ -170,7 +176,8 @@ ISR(INT1_vect)
 
 
 /**
- * Obs³uga przerwañ z przycisków (PB2).
+ * Obs³uga przerwañ z przycisków (PB2).<br>
+ * Ustawianie daty i czasu w zegarze czasu rzeczywistego.
  * @param INT2_vect Wektor przerwania zewnêtrznego INT2.
  */
 ISR(INT2_vect)
@@ -301,6 +308,22 @@ ISR(INT2_vect)
 
 
 
+/**
+ * Obs³uga przerwañ z 16-bitowego licznika Timer/Counter1.<br>
+ * Przepe³nienie licznika po naliczaniu od wartoœci startowej 36239 oznacza up³yw oko³o 30 sekund i powoduje zapis danych z bufora na karcie SD.
+ * @param TIMER1_OVF_vect Wektor przerwania przy przepe³nieniu 16-bitowego licznika Timer/Counter1.
+ */
+ISR(TIMER1_OVF_vect)
+{
+	/* zapisanie danych z bufora na kartê SD */
+	SaveBuffer();
+	
+	/* wy³¹czenie Timera/Countera 1 */
+	TCCR1B &= 250;
+}
+
+
+
 /// Funkcja g³ówna programu.
 int main(void)
 {
@@ -319,16 +342,20 @@ int main(void)
 	/* ustawienie wartoœci domyœlnych w tablicy ustawieñ daty i godziny dla RTC */
 	RTCDefaultValues();
 	
+	/* wy³¹czenie funkcji JTAG, aby móc u¿ywaæ portu C jako zwyk³ego portu I/O */
+	MCUCSR |= (1 << JTD);
+	MCUCSR |= (1 << JTD);
+	
+#pragma region UstawieniaPrzerwan
+
 	/* w³¹czenie przerwañ zewnêtrznych INT1 i INT2 */
 	GICR |= 1 << INT1;
 	GICR |= 1 << INT2;
 	/* ustawienie generacji przerwania INT1 przy dowolnej zmianie poziomu logicznego */
 	MCUCR |= 0 << ISC11 | 1 << ISC10;
 	/* generacja przerwania INT2 przy zboczu opadaj¹cym jest ustawiona domyœlnie */
-	
-	/* wy³¹czenie funkcji JTAG, aby móc u¿ywaæ portu C jako zwyk³ego portu I/O */
-	MCUCSR |= (1 << JTD);
-	MCUCSR |= (1 << JTD);
+
+#pragma endregion UstawieniaPrzerwan
 	
 #pragma region UstawieniaPinow
 
@@ -369,6 +396,13 @@ int main(void)
 	       TWSR1:0 -> TWPS1, TWPS0 - TWI PreScaler bits */
 	
 #pragma endregion UstawieniaTWI
+
+#pragma region UstawieniaTimerCounter1
+
+	/* w³¹czenie przerwania przy przepe³nieniu 16-bitowego licznika Timera/Countera1 */
+	TIMSK = 1 << TOIE1;
+
+#pragma endregion UstawieniaTimerCounter1
 	
 	/* w³¹czenie przerwañ */
 	sei();
