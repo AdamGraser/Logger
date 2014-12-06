@@ -50,27 +50,8 @@ char buffer[BUFFER_SIZE][20];
 /// Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu.
 uint8_t buffer_index = 0;
 
-#pragma region DefinicjeNazwZdarzen
-
-/// Nazwa zdarzenia otwarcia drzwi.
-char event_name1[] PROGMEM = "opened";
-/// Nazwa zdarzenia zamkniêcia drzwi.
-char event_name2[] PROGMEM = "closed";
-/// Nazwa zdarzenia w³¹czenia urz¹dzenia.
-char event_name3[] PROGMEM = "turned on";
-/// Nazwa zdarzenia wykrycia karty SD.
-char event_name4[] PROGMEM = "SD inserted";
-/// Nazwa zdarzenia wykrycia braku systemu plików, który mo¿na zamontowaæ.
-char event_name5[] PROGMEM = "no file system";
-/// Nazwa zdarzenia b³êdu po³¹czenia z kart¹ SD.
-char event_name6[] PROGMEM = "connection error";
-/// Nazwa zdarzenia zmiany ustawieñ daty i czasu w RTC.
-char event_name7[] PROGMEM = "date time changed";
-
-#pragma endregion DefinicjeNazwZdarzen
-
 /// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
-PGM_P events_names[] PROGMEM = {event_name1, event_name2, event_name3, event_name4, event_name5, event_name6, event_name7};
+char events_names[][] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
 
 /// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
 #define RTCDefaultValues()
