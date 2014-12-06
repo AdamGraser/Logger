@@ -39,35 +39,35 @@ uint8_t TwiRead(uint8_t ack)
 
 
 
-void RtcGetTime (time *buf);
+void RtcGetTime (time *buf)
 {
 	/* nawi¹zanie po³¹czenia z RTC */
-	twiStart();
-	twiWrite(0xA2);				/* adres slave-receiver */
-	twiWrite(0x02);				/* wystawienie adresu rejestru VL_seconds */
-	twiStop();
+	TwiStart();
+	TwiWrite(0xA2);				/* adres slave-receiver */
+	TwiWrite(0x02);				/* wystawienie adresu rejestru VL_seconds */
+	TwiStop();
 	
 	/* czytanie odpowiedzi z RTC */
-	twiStart();
-	twiWrite(0xA3);				/* adres slave-transmitter */
-	*buf.seconds = twiRead(1);	/* aktywacja bitu potwierdzenia oznacza chêæ odczytu kolejnego bajta danych */
-	*buf.minutes = twiRead(1);
-	*buf.hours = twiRead(1);
-	*buf.days = twiRead(1);
-	twiRead(1);					/* dni tygodnia nie s¹ potrzebne - odczytujemy z koniecznoœci zachowania kolejnoœci */
-	*buf.months = twiRead(1);
-	*buf.years = twiRead(0);
-	twiStop();
+	TwiStart();
+	TwiWrite(0xA3);				/* adres slave-transmitter */
+	buf->seconds = TwiRead(1);	/* aktywacja bitu poTwierdzenia oznacza chêæ odczytu kolejnego bajta danych */
+	buf->minutes = TwiRead(1);
+	buf->hours = TwiRead(1);
+	buf->days = TwiRead(1);
+	TwiRead(1);					/* dni tygodnia nie s¹ potrzebne - odczytujemy z koniecznoœci zachowania kolejnoœci */
+	buf->months = TwiRead(1);
+	buf->years = TwiRead(0);
+	TwiStop();
 	
 	/* TODO: sprawdzanie wartoœci bitu VL w VL_seconds i miganie jakoœ dziko diodami, jeœli to jest 1 */
 	
 	/* konwersja danych z kodu BCD, pominiêcie nieistotnych bitów */
-	*buf.seconds = ((((*buf.seconds & 0x70) >> 4) * 10) + (*buf.seconds & 0x0F));
-	*buf.minutes = ((((*buf.minutes & 0x70) >> 4) * 10) + (*buf.minutes & 0x0F));
-	*buf.hours = ((((*buf.hours & 0x30) >> 4) * 10) + (*buf.hours & 0x0F));
-	*buf.days = ((((*buf.days & 0x30) >> 4) * 10) + (*buf.days & 0x0F));
-	*buf.months = ((((*buf.months & 0x10) >> 4) * 10) + (*buf.months & 0x0F));
-	*buf.years = ((((*buf.years & 0xF0) >> 4) * 10) + (*buf.years & 0x0F));
+	buf->seconds = ((((buf->seconds & 0x70) >> 4) * 10) + (buf->seconds & 0x0F));
+	buf->minutes = ((((buf->minutes & 0x70) >> 4) * 10) + (buf->minutes & 0x0F));
+	buf->hours = ((((buf->hours & 0x30) >> 4) * 10) + (buf->hours & 0x0F));
+	buf->days = ((((buf->days & 0x30) >> 4) * 10) + (buf->days & 0x0F));
+	buf->months = ((((buf->months & 0x10) >> 4) * 10) + (buf->months & 0x0F));
+	buf->years = ((((buf->years & 0xF0) >> 4) * 10) + (buf->years & 0x0F));
 }
 
 
@@ -84,15 +84,15 @@ void RtcSetTime (uint8_t *data)
 	temp.years = ((data[Years] / 10) << 4) | (data[Years] % 10);
 		
 	/* przes³anie danych do RTC */
-	twiStart();
-	twiWrite(0xA2);			/* adres slave-receiver */
-	twiWrite(0x02);			/* wystawienie adresu rejestru VL_seconds */
-	twiWrite(temp.seconds);
-	twiWrite(temp.minutes);
-	twiWrite(temp.hours);
-	twiWrite(temp.days);
-	twiWrite(0);			/* dni tygodnia nie s¹ potrzebne - ustawiamy z koniecznoœci zachowania kolejnoœci */
-	twiWrite(temp.months);  /* (bêdzie szybciej ni¿ przerwanie transmisji i rozpoczêcie nowej, z adresem rejestru Century_months) */
-	twiWrite(temp.years);
-	twiStop();
+	TwiStart();
+	TwiWrite(0xA2);			/* adres slave-receiver */
+	TwiWrite(0x02);			/* wystawienie adresu rejestru VL_seconds */
+	TwiWrite(temp.seconds);
+	TwiWrite(temp.minutes);
+	TwiWrite(temp.hours);
+	TwiWrite(temp.days);
+	TwiWrite(0);			/* dni tygodnia nie s¹ potrzebne - ustawiamy z koniecznoœci zachowania kolejnoœci */
+	TwiWrite(temp.months);  /* (bêdzie szybciej ni¿ przerwanie transmisji i rozpoczêcie nowej, z adresem rejestru Century_months) */
+	TwiWrite(temp.years);
+	TwiStop();
 }

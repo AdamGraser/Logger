@@ -96,6 +96,21 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="diskio.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="ff.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="ff.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="ffconf.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="integer.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="Logger.c">
       <SubType>compile</SubType>
     </Compile>
@@ -103,6 +118,9 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="rtc.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="sdmm.c">
       <SubType>compile</SubType>
     </Compile>
   </ItemGroup>

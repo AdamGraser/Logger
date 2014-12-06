@@ -1,6 +1,8 @@
 #ifndef RTC_H
 #define RTC_H
 
+#include <avr/io.h>
+#include <avr/interrupt.h>
 #include <stdint-gcc.h>
 
 

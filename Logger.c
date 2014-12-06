@@ -14,13 +14,24 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/pgmspace.h>
 #include <stdint-gcc.h>
+#include <stdio.h>
+#include <string.h>
+#include "ff.h"		/* Deklaracje z API FatFS'a */
 #include "rtc.h"
 
 
 
 #pragma region ZmienneStaleMakra
+
+/// Rozmiar bufora (liczba 22-bajtowych elementów do przechowywania rekordów o zdarzeniach).
+#define BUFFER_SIZE 10
+
+/// Przestrzeñ robocza FatFS potrzebna dla ka¿dego volumenu
+FATFS FatFs;
+
+/// Obiekt (uchwyt do) pliku potrzebny dla ka¿dego otwartego pliku
+FIL Fil;
 
 /**
  * Oznaczenie trybu pracy urz¹dzenia.<br>
@@ -36,35 +47,175 @@ int8_t set_rtc = -1;
 uint8_t set_rtc_values[6];
 
 /// Determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie.
-bool set_rtc_cancelled = false;
+uint8_t set_rtc_cancelled = 0;
 
 /// Przechowuje datê i czas pobrane z RTC.
 time now;
 
-/// Rozmiar bufora (liczba 22-bajtowych elementów do przechowywania rekordów o zdarzeniach).
-const int8_t BUFFER_SIZE = 10;
-
 /// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
-char buffer[BUFFER_SIZE][20];
+char buffer[BUFFER_SIZE][20] = {{0,},};
 
 /// Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu.
 uint8_t buffer_index = 0;
 
 /// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
-char events_names[][] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
+const char* events_names[7] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
 
 /// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
-#define RTCDefaultValues()
-{
-	set_rtc_values[VL_seconds] = 0;
-	set_rtc_values[Minutes] = 0;
-	set_rtc_values[Hours] = 0;
-	set_rtc_values[Days] = 1;
-	set_rtc_values[Century_months] = 1;
-	set_rtc_values[Years] = 14;
-}
+#define RTCDefaultValues() do{ set_rtc_values[VL_seconds] = 0; set_rtc_values[Minutes] = 0; set_rtc_values[Hours] = 0; set_rtc_values[Days] = 1; set_rtc_values[Century_months] = 1; set_rtc_values[Years] = 14; } while(0)
 
 #pragma endregion ZmienneStaleMakra
+
+
+
+/**
+ * Pobiera bie¿¹c¹ datê i czas, pakuje je do pojedynczej wartoœæ typu DWORD i zwraca.<br>
+ * Funkcja ta wywo³ywana jest przez FatFS.
+ * @return Bie¿¹c¹ datê i czas, upakowane w wartoœci typu DWORD.
+ */
+DWORD get_fattime (void)
+{
+	DWORD current_time;
+	
+	RtcGetTime(&now);
+	
+	/* pakowanie daty i czasu do DWORD'a */
+	current_time =
+		((DWORD)(now.years + 2000 - 1980) << 25)
+	  | ((DWORD) now.months << 21)
+	  | ((DWORD) now.days << 16)
+	  | ((DWORD) now.hours << 11)
+	  | ((DWORD) now.minutes << 5)
+	  | ((DWORD) now.seconds >> 1); /* minuty podawane s¹ z dok³adnoœci¹ do 30 sekund, dlatego przechowywane tu s¹ sekundy z zakresu 0 - 29 */
+	
+	return current_time;
+}
+
+
+
+/// Zapisuje dane z bufora na kartê SD, czyœci go oraz przesuwa wskaŸnik w buforze na pocz¹tek.
+void SaveBuffer()
+{
+	/* zmienna iteracyjna */
+	uint8_t i = 0;
+	/* przechowuje iloœæ bajtów zapisanych przez funkcjê f_write */
+	UINT bw = 0;
+	/* przechowuje rezultat dzia³ania funkcji f_write */
+	FRESULT result = FR_OK;
+	/* tymczasowy bufor na dane do zapisania na karcie SD */
+	char temp[38] = {'\0',};
+	
+	/* ta operacja nie mo¿e zostaæ przerwana */
+	cli();
+	
+	/* próba zamontowania systemu plików karty SD */
+	switch(f_mount(&FatFs, "", 1))
+	{
+		/* jeœli karta zg³asza swoj¹ niegotowoœæ, po 1 sekundzie nastêpuje druga próba zamontowania systemu plików */
+		case FR_NOT_READY:
+			_delay_ms(1000);
+			
+			/* jeœli wci¹¿ nie da siê zamontowaæ systemu plików, nale¿y powiadomiæ u¿ytkownika i zakoñczyæ dzia³anie funkcji (w³¹czyæ z powrotem przerwania) */
+			if(f_mount(&FatFs, "", 1) != FR_OK)
+			{
+				/* TODO: zamigaæ diodami dla FR_NOT_READY */
+				
+				break;
+			}
+		
+		/* jeœli pomyœlnie uda³o siê zamontowaæ system FAT, nastêpuje przejœcie do zapisu danych */
+		case FR_OK:
+			/* próba otwarcia/utworzenia pliku, do którego zapisywane s¹ informacje o wykrytych przez urz¹dzenie zdarzeniach */
+			if(f_open(&Fil, "door-logger.txt", FA_WRITE | FA_OPEN_ALWAYS) == FR_OK)
+			{
+				/* próba ustawienia wskaŸnika w pliku na jego koñcu */
+				if(f_lseek(Fil, f_size(Fil)) == FR_OK)
+				{
+					/* oœwiecenie diody LED2 (czerwonej) */
+					PORTD |= 1 << PD6;
+	
+					/* zapisujemy na karcie SD rekordy z bufora (zawartoœæ niepustych elementów bufora) */
+					for(i = 0; i < BUFFER_SIZE; ++i)
+					{
+						if(strlen(buffer[i]) > 0)
+						{
+							/* skopiowanie daty, czasu i spacji */
+							strncpy(temp, buffer[i], 18);
+					
+							/* skopiowanie nazwy zdarzenia */
+							strcpy(temp, events_names[buffer[i][18]]);
+							
+							/* dodanie znaku nowej linii na koñcu */
+							temp[strlen(temp)] = '\n';
+					
+							/* próba zapisu rekordu informacyjnego do pliku */
+							if((result = f_write(&Fil, temp, strlen(temp), &bw) == FR_OK))
+							{
+								/* jeœli zapisywany rekord dotyczy zmiany ustawieñ daty i czasu w RTC */
+								if(buffer[i][18] == 6)
+								{
+									/* wyczyszczenie elementu bufora i bufora tymczasowego */
+									memset((void*)buffer[i], 0, 20);
+									memset((void*)temp, 0, 38);
+						
+									++i;
+						
+									/* skopiowanie nowej daty i czasu, zapisanych w RTC */
+									strcpy(temp, buffer[i]);
+									
+									/* dodanie znaku nowej linii na koñcu */
+									temp[17] = '\n';
+									
+									/* próba zapisu tych danych do pliku */
+									if((result = f_write(&Fil, temp, strlen(temp), &bw) != FR_OK))
+									{
+										/* TODO: dosun¹æ bufor do lewej */
+										
+										break;
+									}
+								}
+		
+								/* wyczyszczenie elementu bufora i bufora tymczasowego */
+								memset((void*)buffer[i], 0, 20);
+								memset((void*)temp, 0, 38);
+							}
+							else
+							{
+								/* TODO: dosun¹æ bufor do lewej */
+								
+								break;
+							}
+						}
+						else
+							break;
+					}
+	
+					/* zgaszenie diody LED2 (czerwonej) */
+					PORTD &= 191;
+	
+					/* ustawienie wskaŸnika w buforze na pocz¹tek */
+					buffer_index = 0;
+				}
+				
+				/* próba zamkniêcia pliku */
+				if(f_close(Fil) == FR_OK && result == FR_OK)
+					/* aby nie pisaæ 5 razy tego samego migania diodami, równie¿ z tego case'a mo¿e nast¹piæ przejœcie do default'a,
+					 * jeœli wyst¹pi b³¹d w jednej z 4 funkcji: f_open, f_seek, f_write lub f_close (taki zbiorczy else i default zarazem) */
+					break;
+			}
+		
+		/* wszelkie b³êdy przy próbie zamontowania systemu plików zg³aszane s¹ u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod */
+		default:
+			/* TODO: zamigaæ diodami dla b³êdu z kart¹ SD */
+	}
+	
+	/* próba odmontowania systemu plików */
+	if(f_mount(NULL, "", 1) != FR_OK)
+		/* TODO: zamigaæ diodami dla b³êdu przy odmontowywaniu systemu plików */
+	
+	/* ponowne w³¹czenie przerwañ */
+	sei();
+}
 
 
 
@@ -93,48 +244,6 @@ void SaveEvent(char event)
 	TCNT1 = 36239;
 	
 	++buffer_index;
-}
-
-
-
-/// Zapisuje dane z bufora na kartê SD, czyœci go oraz przesuwa wskaŸnik w buforze na pocz¹tek.
-void SaveBuffer()
-{
-	uint8_t i = 0;
-	
-	/* ta operacja nie mo¿e zostaæ przerwana */
-	cli();
-	
-	/* TODO: jakaœ inicjalizacja tej karty, mo¿e montowanie FS itp. */
-	
-	/* oœwiecenie diody LED2 (czerwonej) */
-	PORTD |= 1 << PD6;
-	
-	/* zapisujemy na karcie SD rekordy z bufora (zawartoœæ niepustych elementów bufora) */
-	for(i = 0; i < BUFFER_SIZE; ++i)
-	{
-		if(strlen(buffer[i]) > 0)
-		{
-			/* UNDONE: zapis na kartê SD napisu buffer[i], po zamianie kodu zdarzenia na jego nazwê */
-			/* trzeba tutaj bêdzie sprawdzaæ czy kodem tym jest 6 i jeœli tak, to po zapisie od razu przejœæ do nastêpnego elementu i te¿ go zapisaæ (nowa data i czas) */
-			/* trzeba bêdzie u¿ywaæ tymczasowej tablicy albo mieæ tylko wskaŸnik char*, wstawiæ na miejsce kodu zdarzenia \0, zapisaæ tak rekord ze spacj¹ na koñcu,
-			 * a potem tylko dopisaæ pobran¹ z pamiêci programu nazwê zdarzenia i \n */
-		
-			/* wyczyszczenie elementu bufora */
-			memset((void*)buffer[i], 0, 20);
-		}
-		else
-			break;
-	}
-	
-	/* zgaszenie diody LED2 (czerwonej) */
-	PORTD &= 191;
-	
-	/* ustawienie wskaŸnika w buforze na pocz¹tek */
-	buffer_index = 0;
-	
-	/* ponowne w³¹czenie przerwañ */
-	sei();
 }
 
 
@@ -182,6 +291,8 @@ ISR(INT2_vect)
 				if(set_rtc_cancelled)
 				{
 					RTCDefaultValues();
+					
+					set_rtc_cancelled = 0;
 				}
 				/* w przeciwnym razie wysy³amy nowe ustawienia do RTC */
 				else
@@ -217,7 +328,7 @@ ISR(INT2_vect)
 		/* jeœli ustawiono ju¿ wszystkie sk³adowe daty i czasu, wciœniêcie tego przycisku oznacza anulowanie ustawieñ */
 		if(set_rtc == 6)
 		{
-			set_rtc_cancelled = true;
+			set_rtc_cancelled = 0xFF;
 		}
 		else
 		{
@@ -252,7 +363,7 @@ ISR(INT2_vect)
 					else if(set_rtc_values[Century_months] == 2)
 					{
 						/* w roku przestêpnym */
-						if((set_rtc_values[Years] % 4 == 0)
+						if((set_rtc_values[Years] % 4 == 0))
 						{
 							if(set_rtc_values[Days] > 29)
 								set_rtc_values[3] = 1;
