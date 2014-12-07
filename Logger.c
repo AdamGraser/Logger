@@ -236,12 +236,12 @@ void SaveEvent(char event)
 	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
 		now.hours, now.minutes, now.seconds, event);
 	
-	/* w³¹czenie Timera/Countera 1, ustawienie jego preskalera na 1024 */
-	TCCR1B = 1 << CS12 | 1 << CS10;
-	
 	/* przy zegarze taktuj¹cym z czêst. 1 MHz, z preskalerem 1024, w ci¹gu 30 sekund licznik naliczy prawie 29297,
 	 * dlatego ustawi³em tutaj wartoœæ 65535 (max) - 29296, aby przy 29297-mej inkrementacji nast¹pi³o przepe³nienie licznika, co wywo³a przerwanie */
 	TCNT1 = 36239;
+	
+	/* w³¹czenie Timera/Countera 1, ustawienie jego preskalera na 1024 */
+	TCCR1B = 1 << CS12 | 1 << CS10;
 	
 	++buffer_index;
 }
