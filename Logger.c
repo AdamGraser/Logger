@@ -245,19 +245,58 @@ void SaveBuffer()
 
 /**
  * Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora rekord o zarejestrowanym przez urz¹dzenie zdarzeniu.<br>
- * Je¿eli bufor jest zape³niony, wymusza zapisanie jego zawartoœci na karcie SD.
- * @param event Kod reprezentuj¹cy rodzaj zdarzenia zarejestrowany przez urz¹dzenie.
- * @see W dokumentacji urz¹dzenia znajduje siê lista zdarzeñ wraz z kodami.
+ * Je¿eli bufor jest zape³niony, wymusza zapisanie jego zawartoœci na karcie SD.<br>
+ * Sprawdza obecnoœæ mo¿liwego do zamontowania systemu plików. W razie jego braku, w³¹cza licznik powoduj¹cy ponowne, jednostajne powtarzanie tej czynnoœci 
+ * ze sta³ym interwa³em czasowym, wynosz¹cym ok. 10 sekund.
+ * @param event Kod reprezentuj¹cy rodzaj zdarzenia zarejestrowany przez urz¹dzenie.<br>W dokumentacji urz¹dzenia znajduje siê lista zdarzeñ wraz z kodami.
  */
 void SaveEvent(char event)
 {
+	/* pobranie aktualnej daty i czasu z RTC */
 	RtcGetTime(&now);
 	
-	/* TODO: sprawdzaæ obecnoœæ karty SD, jeœli brak, to ustawiæ flagê i w³¹czyæ licznik */
-	
+	/* jeœli bufor jest ju¿ pe³ny, nale¿y wymusiæ zapis jego zawartoœci na kartê SD */
 	if(buffer_index == BUFFER_SIZE)
-		SaveBuffer();
-		/* TODO: jeœli flaga b³êdu = 1, to ustawiæ flagê pe³nego bufora przy braku karty SD */
+	{
+		/* jeœli jednak wczeœniej zg³oszony zosta³ brak karty, nale¿y natychmiast zg³osiæ zape³nienie bufora */
+		if(device_flags.no_sd_card == 1)
+			device_flags.buffer_full = 1;
+		else
+		{
+			SaveBuffer();
+			
+			/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+			 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
+			if(device_flags.sd_communication_error > 0)
+				device_flags.buffer_full = 1;
+		}
+	}
+	
+	/* sprawdzenie obecnoœci mo¿liwego do zamontowania systemu plików */
+	if(f_mount(&FatFs, "", 1) != FR_OK)
+	{
+		/* ustawienie flagi braku karty SD */
+		device_flags.no_sd_card = 1;
+		
+		/* zapisywanie w buforze rekordu informuj¹cego o braku karty SD */
+		sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
+		now.hours, now.minutes, now.seconds, 4);
+		
+		++buffer_index;
+		
+		/* w³¹czenie Timera/Countera0 z preskalerem 1024 */
+		TCCR0 = 1 << CS02 | 1 << CS00;
+	}
+	else
+	{
+		/* próba odmontowania systemu plików */
+		f_mount(NULL, "", 1);
+		
+		/* wyczyszczenie flagi, wyzerowanie i wy³¹czenie licznika */
+		device_flags.no_sd_card = 0;
+		TCNT2 = TCNT0 = 0;
+		TCCR0 &= 250;
+	}
 	
 	/* zapisywanie w buforze daty i czasu z RTC oraz symbolu zdarzenia jako napis o formacie "YY-MM-DD HH:ii:SS c" */
 	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
@@ -428,6 +467,46 @@ ISR(INT2_vect)
 
 
 /**
+ * Obs³uga przerwañ z 8-bitowego licznika Timer/Counter0.<br>
+ * Przepe³nienie licznika powoduje inkrementacjê licznika Timer/Counter2. Osi¹gniêcie przez licznik Timer/Counter2 wartoœci 39 oznacza up³yw ok. 10 sekund i 
+ * jest to jednoznaczne ze sprawdzeniem obecnoœci mo¿liwego do zamontowania systemu plików i wyzerowania liczników. Jeœli takowy system jest obecny, licznik zostaje 
+ * wy³¹czony. W przeciwnym razie odliczanie 10 sekund jest powtarzane.
+ * @param TIMER0_OVF_vect Wektor przerwania przy przepe³nieniu 8-bitowego licznika Timer/Counter0.
+ */
+ISR(TIMER0_OVF_vect)
+{
+	/* Karta mog³a zostaæ wykryta wczeœniej w SaveEvent */
+	if(device_flags.no_sd_card == 1)
+	{
+		++TCNT2;
+	
+		/* jeœli up³ynê³o co najmniej 10 sekund */
+		if(TCNT2 == 39)
+		{
+			TCNT2 = TCNT0 = 0;
+		
+			/* sprawdzenie obecnoœci mo¿liwego do zamontowania systemu plików */
+			if(f_mount(&FatFs, "", 1) == FR_OK)
+			{
+				/* wyczyszczenie flagi braku karty SD */
+				device_flags.no_sd_card = 0;
+			
+				/* próba odmontowania systemu plików */
+				f_mount(NULL, "", 1);
+			
+				/* zapisywanie w buforze rekordu informuj¹cego o w³o¿eniu do urz¹dzenia karty SD */
+				SaveEvent(3);
+			
+				/* wy³¹czenie Timera/Countera0 */
+				TCCR0 &= 250;
+			}
+		}
+	}
+}
+
+
+
+/**
  * Obs³uga przerwañ z 16-bitowego licznika Timer/Counter1.<br>
  * Przepe³nienie licznika po naliczaniu od wartoœci startowej 36239 oznacza up³yw oko³o 30 sekund i powoduje zapis danych z bufora na karcie SD.
  * @param TIMER1_OVF_vect Wektor przerwania przy przepe³nieniu 16-bitowego licznika Timer/Counter1.
@@ -444,6 +523,11 @@ ISR(TIMER1_OVF_vect)
 		
 		/* zapisanie danych z bufora na kartê SD */
 		SaveBuffer();
+		
+		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+		 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
+		if(device_flags.sd_communication_error > 0)
+			device_flags.buffer_full = 1;
 	}
 }
 
@@ -522,12 +606,12 @@ int main(void)
 	
 #pragma endregion UstawieniaTWI
 
-#pragma region UstawieniaTimerCounter1
+#pragma region UstawieniaTimerCounter
 
-	/* w³¹czenie przerwania przy przepe³nieniu 16-bitowego licznika Timera/Countera1 */
-	TIMSK = 1 << TOIE1;
+	/* w³¹czenie przerwania przy przepe³nieniu liczników Timer/Counter0 (8-bit) i Timer/Counter1 (16-bit) */
+	TIMSK = 1 << TOIE0 | 1 << TOIE1;
 
-#pragma endregion UstawieniaTimerCounter1
+#pragma endregion UstawieniaTimerCounter
 	
 	/* w³¹czenie przerwañ */
 	sei();
@@ -537,6 +621,6 @@ int main(void)
 	/************************************************************************/
     for(;;)
     {
-        
+        /* TODO: miganie diodami wg. odpowiednich flag b³êdów (p. opis w OneNote) */
     }
 }
