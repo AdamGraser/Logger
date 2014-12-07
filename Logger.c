@@ -407,11 +407,17 @@ ISR(INT2_vect)
  */
 ISR(TIMER1_OVF_vect)
 {
-	/* zapisanie danych z bufora na kartê SD */
-	SaveBuffer();
+	/* Mog³o teraz wyst¹piæ przerwanie o wy¿szym priorytecie lub takowe mog³oby byæ ju¿ obs³ugiwane gdy wyst¹pi³o przerwanie z TIMER1.
+	 * Przerwania o wy¿szych priorytetach mog¹ (poœrednio lub bezpoœrednio) wywo³aæ SaveBuffer, a wtedy poni¿szy kod nie ma racji bytu.
+	 * Dlatego najpierw sprawdzamy, czy licznik zawiera wartoœæ mniejsz¹ ni¿ startowa, co oznacza jego przepe³nienie. */
+	if(TCNT1 < 36239)
+	{
+		/* zapisanie danych z bufora na kartê SD */
+		SaveBuffer();
 	
-	/* wy³¹czenie Timera/Countera 1 */
-	TCCR1B &= 250;
+		/* wy³¹czenie Timera/Countera 1 */
+		TCCR1B &= 250;
+	}
 }
 
 
