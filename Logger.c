@@ -85,10 +85,90 @@ const char* events_names[7] = { "opened", "closed", "turned on", "SD inserted", 
 /// Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ).
 flags device_flags;
 
-/// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
-#define RTCDefaultValues() do{ set_rtc_values[VL_seconds] = 0; set_rtc_values[Minutes] = 0; set_rtc_values[Hours] = 0; set_rtc_values[Days] = 1; set_rtc_values[Century_months] = 1; set_rtc_values[Years] = 14; } while(0)
-
 #pragma endregion ZmienneStaleMakra
+
+
+
+/// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
+inline void RTCDefaultValues()
+{
+	set_rtc_values[VL_seconds] = 0;
+	set_rtc_values[Minutes] = 0;
+	set_rtc_values[Hours] = 0;
+	set_rtc_values[Days] = 1;
+	set_rtc_values[Century_months] = 1;
+	set_rtc_values[Years] = 14;
+}
+
+
+
+/**
+ * Miga zielon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
+ * @param repeats Liczba migniêæ.
+ * @param green_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
+ * @param green_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
+ */
+inline void BlinkGreen(int repeats, int green_on, int green_off)
+{
+	/* zapisanie stanu, zgaszenie diody i odczekanie 'green_off' milisekund */
+	if((PIND & (1 << PIND7)))
+	{
+		device_flags.led1 = 1;
+		PORTD &= 127;
+		_delay_ms(green_off);
+	}
+	
+	/* migniêcie diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */
+	for(; repeats > 0; --repeats)
+	{
+		PORTD |= 128;
+		_delay_ms(green_on);
+		
+		PORTD &= 127;
+		_delay_ms(green_off);
+	}
+	
+	/* przywrócenie stanu diody */
+	PORTD |= device_flags.led1 << PD7;
+	
+	/* wyczyszczenie flag z zapisanym stanem diod */
+	device_flags.led1 = 0;
+}
+
+
+
+/**
+ * Miga czerwon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
+ * @param repeats Liczba migniêæ.
+ * @param red_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
+ * @param red_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
+ */
+inline void BlinkRed(int repeats, int red_on, int red_off)
+{
+	/* zapisanie stanu, zgaszenie diody i odczekanie 'red_off' milisekund */
+	if((PIND & (1 << PIND6)))
+	{
+		device_flags.led2 = 1;
+		PORTD &= 191;
+		_delay_ms(red_off);
+	}
+	
+	/* migniêcie diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */
+	for(; repeats > 0; --repeats)
+	{
+		PORTD |= 64;
+		_delay_ms(red_on);
+		
+		PORTD &= 191;
+		_delay_ms(red_off);
+	}
+	
+	/* przywrócenie stanu diody */
+	PORTD |= device_flags.led2 << PD6;
+	
+	/* wyczyszczenie flag z zapisanym stanem diod */
+	device_flags.led2 = 0;
+}
 
 
 
