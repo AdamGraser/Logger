@@ -8,8 +8,8 @@
  *  Przycisk PB1 - pojedyncze naciœniêcie zwiêkszenie o 1 bie¿¹cego elementu daty/czasu (wciœniêcie i przytrzymanie to pojedyncze naciœniêcie)
  *                 wyjœcie poza zakres danej sk³adowej daty/czasu powoduje jej wyzerowanie
  *  
- *  Dioda LED1 PD7 - sygnalizacja dzia³ania urz¹dzenia ci¹g³ym œwieceniem
- *  Dioda LED2 PD6 - sygnalizacja trwania operacji zapisu danych na kartê SD ci¹g³ym œwieceniem w trakcie trwania operacji
+ *  Dioda LED1 PD7 zielona - sygnalizacja dzia³ania urz¹dzenia ci¹g³ym œwieceniem
+ *  Dioda LED2 PD6 czerwona - sygnalizacja trwania operacji zapisu danych na kartê SD ci¹g³ym œwieceniem w trakcie trwania operacji
  */ 
 
 #include <avr/io.h>
@@ -19,6 +19,27 @@
 #include <string.h>
 #include "ff.h"		/* Deklaracje z API FatFS'a */
 #include "rtc.h"
+
+
+
+/**
+ * Pole bitowe przechowuj¹ce flagi m.in. b³êdów.
+ * @field led1 Bie¿¹cy stan diody zielonej
+ * @field led2 Bie¿¹cy stan diody czerwonej
+ * @field vl Wartoœæ bitu VL z rejestru VL_seconds w RTC (wartoœæ 1 informuje o utraceniu dok³adnoœci pomiaru czasu)
+ * @field no_sd_card Flaga braku mo¿liwego do zamontowania systemu plików
+ * @field buffer_full Flaga zape³nienia bufora przy jednoczesnym braku karty SD lub flaga b³êdu zapisu danych na kartê SD
+ * @field sd_communication_error Flaga b³êdu u¿ywana wewn¹trz funkcji {@link SaveBuffer}
+ */
+typedef struct
+{
+	uint8_t led1:1,
+			led2:1,
+			vl:1,
+			no_sd_card:1,
+			buffer_full:1,
+			sd_communication_error:3;
+} flags = {0, 0, 0, 0, 0, 0};
 
 
 
@@ -60,6 +81,9 @@ uint8_t buffer_index = 0;
 
 /// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
 const char* events_names[7] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
+
+/// Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ).
+flags device_flags;
 
 /// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
 #define RTCDefaultValues() do{ set_rtc_values[VL_seconds] = 0; set_rtc_values[Minutes] = 0; set_rtc_values[Hours] = 0; set_rtc_values[Days] = 1; set_rtc_values[Century_months] = 1; set_rtc_values[Years] = 14; } while(0)
@@ -118,7 +142,7 @@ void SaveBuffer()
 			/* jeœli wci¹¿ nie da siê zamontowaæ systemu plików, nale¿y powiadomiæ u¿ytkownika i zakoñczyæ dzia³anie funkcji (w³¹czyæ z powrotem przerwania) */
 			if(f_mount(&FatFs, "", 1) != FR_OK)
 			{
-				/* TODO: zamigaæ diodami dla FR_NOT_READY */
+				/* TODO: zamigaæ diodami dla FR_NOT_READY, zrestartowaæ odliczanie czasu do zapisu, ustawiæ flagê b³êdu */
 				
 				break;
 			}
@@ -206,7 +230,7 @@ void SaveBuffer()
 		
 		/* wszelkie b³êdy przy próbie zamontowania systemu plików zg³aszane s¹ u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod */
 		default:
-			/* TODO: zamigaæ diodami dla b³êdu z kart¹ SD */
+			/* TODO: zamigaæ diodami dla b³êdu z kart¹ SD, ustawiæ flagê b³êdu */
 	}
 	
 	/* próba odmontowania systemu plików */
@@ -229,8 +253,11 @@ void SaveEvent(char event)
 {
 	RtcGetTime(&now);
 	
+	/* TODO: sprawdzaæ obecnoœæ karty SD, jeœli brak, to ustawiæ flagê i w³¹czyæ licznik */
+	
 	if(buffer_index == BUFFER_SIZE)
 		SaveBuffer();
+		/* TODO: jeœli flaga b³êdu = 1, to ustawiæ flagê pe³nego bufora przy braku karty SD */
 	
 	/* zapisywanie w buforze daty i czasu z RTC oraz symbolu zdarzenia jako napis o formacie "YY-MM-DD HH:ii:SS c" */
 	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
@@ -412,11 +439,11 @@ ISR(TIMER1_OVF_vect)
 	 * Dlatego najpierw sprawdzamy, czy licznik zawiera wartoœæ mniejsz¹ ni¿ startowa, co oznacza jego przepe³nienie. */
 	if(TCNT1 < 36239)
 	{
-		/* zapisanie danych z bufora na kartê SD */
-		SaveBuffer();
-	
 		/* wy³¹czenie Timera/Countera 1 */
 		TCCR1B &= 250;
+		
+		/* zapisanie danych z bufora na kartê SD */
+		SaveBuffer();
 	}
 }
 
