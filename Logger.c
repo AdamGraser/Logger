@@ -14,6 +14,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/delay.h>
 #include <stdint-gcc.h>
 #include <stdio.h>
 #include <string.h>
@@ -44,6 +45,9 @@ typedef struct
 
 
 #pragma region ZmienneStaleMakra
+
+/// Czêstotliwoœæ taktowania procesora. Zdefiniowane dla unikniêcia ostrze¿enia kompilatora w util/delay.h
+# define F_CPU 1000000UL
 
 /// Rozmiar bufora (liczba 22-bajtowych elementów do przechowywania rekordów o zdarzeniach).
 #define BUFFER_SIZE 10
@@ -90,7 +94,7 @@ flags device_flags;
 
 
 /// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
-inline void RTCDefaultValues()
+inline void RTCDefaultValues() __attribute__((always_inline))
 {
 	set_rtc_values[VL_seconds] = 0;
 	set_rtc_values[Minutes] = 0;
@@ -108,7 +112,7 @@ inline void RTCDefaultValues()
  * @param green_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
  * @param green_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
  */
-inline void BlinkGreen(int repeats, int green_on, int green_off)
+inline void BlinkGreen(int repeats, int green_on, int green_off) __attribute__((always_inline))
 {
 	/* zapisanie stanu, zgaszenie diody i odczekanie 'green_off' milisekund */
 	if((PIND & (1 << PIND7)))
@@ -143,7 +147,7 @@ inline void BlinkGreen(int repeats, int green_on, int green_off)
  * @param red_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
  * @param red_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
  */
-inline void BlinkRed(int repeats, int red_on, int red_off)
+inline void BlinkRed(int repeats, int red_on, int red_off) __attribute__((always_inline))
 {
 	/* zapisanie stanu, zgaszenie diody i odczekanie 'red_off' milisekund */
 	if((PIND & (1 << PIND6)))
