@@ -9,14 +9,6 @@
 
 #pragma region ZmienneStaleMakra
 
-/* sta³e u¿ywane jako indeksy tablicy set_rtc_values, dla zwiêkszenia przejrzystoœci kodu */
-#define VL_seconds 0
-#define Minutes 1
-#define Hours 2
-#define Days 3
-#define Century_months 4
-#define Years 5
-
 /**
  * Reprezentuje obiekt typu DateTime (przechowuje sk³adowe daty i czasu).
  * @field seconds sekundy

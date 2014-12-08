@@ -8,6 +8,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+/// Czêstotliwoœæ taktowania procesora. Zdefiniowane dla unikniêcia ostrze¿enia kompilatora w util/delay.h
+#define F_CPU 1000000UL
+
 #include <util/delay.h>
 
 
@@ -33,7 +36,13 @@ typedef struct
 
 
 
-#pragma region ZmienneStaleMakra
+/* sta³e u¿ywane jako indeksy tablicy set_rtc_values, dla zwiêkszenia przejrzystoœci kodu */
+#define VL_seconds 0
+#define Minutes 1
+#define Hours 2
+#define Days 3
+#define Century_months 4
+#define Years 5
 
 /**
  * Wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione w RTC po zatwierdzeniu
@@ -42,16 +51,20 @@ typedef struct
 extern uint8_t set_rtc_values[6];
 
 /// Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ).
-extern flags device_flags = {0, 0, 0, 0, 0, 0};
-
-#pragma endregion ZmienneStaleMakra
+extern flags device_flags;
 
 
-
-#pragma region FunkcjeInline
 
 /// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
-extern inline void RTCDefaultValues() __attribute__((always_inline));
+#define RTCDefaultValues() \
+{ \
+	set_rtc_values[VL_seconds] = 0; \
+	set_rtc_values[Minutes] = 0; \
+	set_rtc_values[Hours] = 0; \
+	set_rtc_values[Days] = 1; \
+	set_rtc_values[Century_months] = 1; \
+	set_rtc_values[Years] = 14; \
+}
 
 /**
  * Miga zielon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
@@ -59,7 +72,33 @@ extern inline void RTCDefaultValues() __attribute__((always_inline));
  * @param green_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
  * @param green_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
  */
-extern inline void BlinkGreen(int repeats, int green_on, int green_off) __attribute__((always_inline));
+#define BlinkGreen(repeats, green_on, green_off) \
+{ \
+	/* zapisanie stanu, zgaszenie diody i odczekanie 'green_off' milisekund */ \
+	if((PIND & (1 << PIND7))) \
+	{ \
+		device_flags.led1 = 1; \
+		PORTD &= 127; \
+	} \
+	_delay_ms(green_off); \
+\
+	/* migniêcie diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */ \
+	/* zamiast tworzyæ now¹ zmienn¹, u¿yto nieu¿ywanego rejestru Output Compare Register Timer/Counter0 */ \
+	for(OCR0 = 0; OCR0 < repeats; ++OCR0) \
+	{ \
+		PORTD |= 128; \
+		_delay_ms(green_on); \
+\
+		PORTD &= 127; \
+		_delay_ms(green_off); \
+	} \
+\
+	/* przywrócenie stanu diody */ \
+	PORTD |= device_flags.led1 << PD7; \
+\
+	/* wyczyszczenie flag z zapisanym stanem diod */ \
+	device_flags.led1 = 0; \
+}
 
 /**
  * Miga czerwon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
@@ -67,9 +106,33 @@ extern inline void BlinkGreen(int repeats, int green_on, int green_off) __attrib
  * @param red_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
  * @param red_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
  */
-extern inline void BlinkRed(int repeats, int red_on, int red_off) __attribute__((always_inline));
-
-#pragma endregion FunkcjeInline
+#define BlinkRed(repeats, red_on, red_off) \
+{ \
+	/* zapisanie stanu, zgaszenie diody i odczekanie 'red_off' milisekund */ \
+	if((PIND & (1 << PIND6))) \
+	{ \
+		device_flags.led2 = 1; \
+		PORTD &= 191; \
+	} \
+	_delay_ms(red_off); \
+\
+	/* migniêcie diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */ \
+	/* zamiast tworzyæ now¹ zmienn¹, u¿yto nieu¿ywanego rejestru Output Compare Register Timer/Counter0 */ \
+	for(OCR0 = 0; OCR0 < repeats; ++OCR0) \
+	{ \
+		PORTD |= 64; \
+		_delay_ms(red_on); \
+\
+		PORTD &= 191; \
+		_delay_ms(red_off); \
+	} \
+\
+	/* przywrócenie stanu diody */ \
+	PORTD |= device_flags.led2 << PD6; \
+\
+	/* wyczyszczenie flag z zapisanym stanem diod */ \
+	device_flags.led2 = 0; \
+}
 
 
 

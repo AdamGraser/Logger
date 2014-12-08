@@ -8,22 +8,21 @@
  *  Przycisk PB1 - pojedyncze naciœniêcie zwiêkszenie o 1 bie¿¹cego elementu daty/czasu (wciœniêcie i przytrzymanie to pojedyncze naciœniêcie)
  *                 wyjœcie poza zakres danej sk³adowej daty/czasu powoduje jej wyzerowanie
  *  
- *  Dioda LED1 PD7 zielona - sygnalizacja dzia³ania urz¹dzenia ci¹g³ym œwieceniem
- *  Dioda LED2 PD6 czerwona - sygnalizacja trwania operacji zapisu danych na kartê SD ci¹g³ym œwieceniem w trakcie trwania operacji
+ *  Dioda LED1 PD7 zielona - sygnalizacja dzia³ania urz¹dzenia ci¹g³ym œwieceniem, sygnalizacja innych zdarzeñ miganiem
+ *  Dioda LED2 PD6 czerwona - sygnalizacja trwania operacji zapisu danych na kartê SD ci¹g³ym œwieceniem w trakcie trwania operacji,
+ *                            sygnalizacja innych zdarzeñ (g³ównie b³êdów) miganiem
+ *  W dokumentacji znajduje siê dok³adny opis migniêæ diod i ich znaczenia.
  */ 
-
-/// Czêstotliwoœæ taktowania procesora. Zdefiniowane dla unikniêcia ostrze¿enia kompilatora w util/delay.h
-#define F_CPU 1000000UL
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <util/delay.h>
 #include <stdint-gcc.h>
 #include <stdio.h>
 #include <string.h>
 #include "ff.h"		/* Deklaracje z API FatFS'a */
 #include "utils.h"
 #include "rtc.h"
+#include <util/delay.h>
 
 
 
@@ -48,8 +47,17 @@ int8_t set_rtc = -1;
 /// Determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie.
 uint8_t set_rtc_cancelled = 0;
 
+/*
+ * Wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione w RTC po zatwierdzeniu
+ * operacji zmiany tych ustawieñ.
+ */
+uint8_t set_rtc_values[6];
+
 /// Przechowuje datê i czas pobrane z RTC.
 time now;
+
+/* Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ). */
+flags device_flags = {0, 0, 0, 0, 0, 0};
 
 /// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
 char buffer[BUFFER_SIZE][20] = {{0,},};
@@ -370,47 +378,62 @@ ISR(INT2_vect)
 		/* przycisk PB1 nie jest wciœniêty */
 		if(PINB & 2)
 		{
-			/* jeœli pozosta³y jeszcze jakieœ sk³adowe daty/czasu do ustawienia */
-			if(set_rtc < 6)
+			/* przejœcie do nastêpnej sk³adowej */
+			++set_rtc;
+			
+			switch(set_rtc)
 			{
-				/* przejœcie do nastêpnej sk³adowej */
-				++set_rtc;
-			}
-			/* jeœli nie, to urz¹dzenie oczekuje zatwierdzenia lub anulowania zmian */
-			else
-			{
-				/* jeœli anulowano, zapisujemy do tablicy wartoœci domyœlne */
-				if(set_rtc_cancelled)
-				{
-					RTCDefaultValues();
-					
-					set_rtc_cancelled = 0;
-				}
-				/* w przeciwnym razie wysy³amy nowe ustawienia do RTC */
-				else
-				{
-					/* jeœli w buforze brak miejsca na 2 rekordy, nale¿y zapisaæ jego zawartoœæ na kartê SD */
-					if(buffer_index > BUFFER_SIZE - 2)
-					{
-						SaveBuffer();
-					}
-					
-					/* zapisanie do bufora rekordu o zdarzeniu */
-					SaveEvent(6);
-						
-					/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
-					sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
-						set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
-						
-					/* przesuniêcie wskaŸnika w buforze o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
-					++buffer_index;
-					
-					/* zapisanie w RTC nowych ustawieñ daty i godziny */
-					RtcSetTime(set_rtc_values);
-				}
+				/* rozpoczêcie operacji zmiany daty i czasu w RTC oraz zakoñczenie ustawiania wszystkich sk³adowych i oczekiwanie na anulowanie/zatwierdzenie
+				 * zmian sygnalizowane jest trzykrotnym szybkim migniêciem zielonej diody */
+				case 0:
+				case 6:
+					BlinkGreen(3, 100, 100);
+				break;
 				
-				/* zakoñczenie ustawieñ daty i godziny dla RTC */
-				set_rtc = -1;
+				/* anulowanie/zatwierdzenie wprowadzonych zmian */
+				case 7:
+					/* jeœli anulowano, zapisujemy do tablicy wartoœci domyœlne */
+					if(set_rtc_cancelled)
+					{
+						RTCDefaultValues();
+						set_rtc_cancelled = 0;
+						
+						/* sygnalizacja anulowania zmiany ustawieñ */
+						BlinkRed(3, 100, 100);
+					}
+					/* w przeciwnym razie wysy³amy nowe ustawienia do RTC */
+					else
+					{
+						/* jeœli w buforze brak miejsca na 2 rekordy, nale¿y zapisaæ jego zawartoœæ na kartê SD */
+						if(buffer_index > BUFFER_SIZE - 2)
+						{
+							SaveBuffer();
+						}
+					
+						/* zapisanie do bufora rekordu o zdarzeniu */
+						SaveEvent(6);
+						
+						/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
+						sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
+							set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
+						
+						/* przesuniêcie wskaŸnika w buforze o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
+						++buffer_index;
+					
+						/* zapisanie w RTC nowych ustawieñ daty i godziny */
+						RtcSetTime(set_rtc_values);
+						
+						/* sygnalizacja wys³ania nowych ustawieñ do RTC */
+						BlinkGreen(1, 1500, 100);
+					}
+				
+					/* zakoñczenie ustawieñ daty i godziny dla RTC */
+					set_rtc = -1;
+				break;
+				
+				/* sygnalizacja przejœcia do kolejnej sk³adowej */
+				default:
+					BlinkGreen(set_rtc + 1, 200, 100);
 			}
 		}
 	}
@@ -485,7 +508,9 @@ ISR(INT2_vect)
 			}
 
 #pragma endregion KontrolaZakresuDatyICzasu
-
+			
+			/* sygnalizacja inkrementacji bie¿¹cej sk³adowej */
+			BlinkRed(1, 200, 1);
 		}
 	}
 }
@@ -645,6 +670,28 @@ int main(void)
 	/************************************************************************/
     for(;;)
     {
-        /* TODO: miganie diodami wg. odpowiednich flag b³êdów (p. opis w OneNote) */
+        /* flaga VL ustawiona => dioda zielona miga
+         * w przeciwnym razie => dioda zielona œwieci siê ci¹gle */
+		if(device_flags.vl)
+			PORTD ^= 128;
+		else
+			PORTD |= 128;
+		
+		/* brak karty SD (i ew. bufor pe³ny) => dioda czerwona miga
+		 *                w przeciwnym razie => dioda czerwona jest zgaszona */
+		if(device_flags.no_sd_card || device_flags.buffer_full)
+			PORTD ^= 64;
+		else
+			PORTD &= 191;
+		
+		/* jeœli brak karty SD, zape³nienie bufora powoduje 2 razy czêstsze miganie diody */
+		if(device_flags.buffer_full)
+		{
+			_delay_ms(500);
+			PORTD ^= 64;
+			_delay_ms(500);
+		}
+		else
+			_delay_ms(1000);
     }
 }
