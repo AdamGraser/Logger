@@ -13,7 +13,7 @@
  */ 
 
 /// Czêstotliwoœæ taktowania procesora. Zdefiniowane dla unikniêcia ostrze¿enia kompilatora w util/delay.h
-# define F_CPU 1000000UL
+#define F_CPU 1000000UL
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -22,28 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "ff.h"		/* Deklaracje z API FatFS'a */
+#include "utils.h"
 #include "rtc.h"
-
-
-
-/**
- * Pole bitowe przechowuj¹ce flagi m.in. b³êdów.
- * @field led1 Bie¿¹cy stan diody zielonej
- * @field led2 Bie¿¹cy stan diody czerwonej
- * @field vl Wartoœæ bitu VL z rejestru VL_seconds w RTC (wartoœæ 1 informuje o utraceniu dok³adnoœci pomiaru czasu)
- * @field no_sd_card Flaga braku mo¿liwego do zamontowania systemu plików
- * @field buffer_full Flaga zape³nienia bufora przy jednoczesnym braku karty SD lub flaga b³êdu zapisu danych na kartê SD
- * @field sd_communication_error Flaga b³êdu u¿ywana wewn¹trz funkcji {@link SaveBuffer}
- */
-typedef struct
-{
-	uint8_t led1:1,
-			led2:1,
-			vl:1,
-			no_sd_card:1,
-			buffer_full:1,
-			sd_communication_error:3;
-} flags;
 
 
 
@@ -65,12 +45,6 @@ FIL Fil;
  */
 int8_t set_rtc = -1;
 
-/**
- * Wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione w RTC po zatwierdzeniu
- * operacji zmiany tych ustawieñ.
- */
-uint8_t set_rtc_values[6];
-
 /// Determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie.
 uint8_t set_rtc_cancelled = 0;
 
@@ -86,103 +60,7 @@ uint8_t buffer_index = 0;
 /// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
 const char* events_names[7] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
 
-/// Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ).
-flags device_flags = {0, 0, 0, 0, 0, 0};
-
 #pragma endregion ZmienneStaleMakra
-
-
-
-/// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
-inline void RTCDefaultValues() __attribute__((always_inline));
-
-/**
- * Miga zielon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
- * @param repeats Liczba migniêæ.
- * @param green_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
- * @param green_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
- */
-inline void BlinkGreen(int repeats, int green_on, int green_off) __attribute__((always_inline));
-
-/**
- * Miga czerwon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
- * @param repeats Liczba migniêæ.
- * @param red_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
- * @param red_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
- */
-inline void BlinkRed(int repeats, int red_on, int red_off) __attribute__((always_inline));
-
-
-
-void RTCDefaultValues()
-{
-	set_rtc_values[VL_seconds] = 0;
-	set_rtc_values[Minutes] = 0;
-	set_rtc_values[Hours] = 0;
-	set_rtc_values[Days] = 1;
-	set_rtc_values[Century_months] = 1;
-	set_rtc_values[Years] = 14;
-}
-
-
-
-void BlinkGreen(int repeats, int green_on, int green_off)
-{
-	/* zapisanie stanu, zgaszenie diody i odczekanie 'green_off' milisekund */
-	if((PIND & (1 << PIND7)))
-	{
-		device_flags.led1 = 1;
-		PORTD &= 127;
-	}
-	_delay_ms(green_off);
-	
-	/* migniêcie diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */
-	do
-	{
-		PORTD |= 128;
-		_delay_ms(green_on);
-		
-		PORTD &= 127;
-		_delay_ms(green_off);
-	}
-	while(--repeats);
-	
-	/* przywrócenie stanu diody */
-	PORTD |= device_flags.led1 << PD7;
-	
-	/* wyczyszczenie flag z zapisanym stanem diod */
-	device_flags.led1 = 0;
-}
-
-
-
-void BlinkRed(int repeats, int red_on, int red_off)
-{
-	/* zapisanie stanu, zgaszenie diody i odczekanie 'red_off' milisekund */
-	if((PIND & (1 << PIND6)))
-	{
-		device_flags.led2 = 1;
-		PORTD &= 191;
-	}
-	_delay_ms(red_off);
-	
-	/* migniêcie diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */
-	do
-	{
-		PORTD |= 64;
-		_delay_ms(red_on);
-		
-		PORTD &= 191;
-		_delay_ms(red_off);
-	}
-	while(--repeats);
-	
-	/* przywrócenie stanu diody */
-	PORTD |= device_flags.led2 << PD6;
-	
-	/* wyczyszczenie flag z zapisanym stanem diod */
-	device_flags.led2 = 0;
-}
 
 
 
@@ -199,7 +77,7 @@ DWORD get_fattime (void)
 	
 	/* pakowanie daty i czasu do DWORD'a */
 	current_time =
-		((DWORD)(now.years + 2000 - 1980) << 25)
+		((DWORD)(now.years + 20) << 25)
 	  | ((DWORD) now.months << 21)
 	  | ((DWORD) now.days << 16)
 	  | ((DWORD) now.hours << 11)
@@ -234,7 +112,11 @@ void SaveBuffer()
 			/* jeœli wci¹¿ nie da siê zamontowaæ systemu plików, nale¿y powiadomiæ u¿ytkownika i zakoñczyæ dzia³anie funkcji (w³¹czyæ z powrotem przerwania) */
 			if(f_mount(&FatFs, "", 1) != FR_OK)
 			{
-				/* TODO: zamigaæ diodami dla FR_NOT_READY, zrestartowaæ odliczanie czasu do zapisu, ustawiæ flagê b³êdu */
+				/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
+				device_flags.sd_communication_error = 1;
+				
+				/* sekwencja migniêæ diody czerwonej, sygnalizuj¹ca u¿ytkownikowi niegotowoœæ karty SD */
+				BlinkRed(5, 100, 100);
 				
 				break;
 			}
@@ -342,12 +224,44 @@ void SaveBuffer()
 		
 		/* wszelkie b³êdy przy próbie zamontowania systemu plików zg³aszane s¹ u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod */
 		default:
-			/* TODO: zamigaæ diodami dla b³êdu z kart¹ SD */
+			/* sekwencja migniêæ diody czerwonej, sygnalizuj¹ca u¿ytkownikowi b³¹d komunikacji z kart¹ SD */
+			BlinkRed(3, 200, 100);
 	}
 	
 	/* próba odmontowania systemu plików */
 	if(f_mount(NULL, "", 1) != FR_OK)
-		/* TODO: zamigaæ diodami dla b³êdu przy odmontowywaniu systemu plików */
+	{
+		/* sekwencja migniêæ diod, sygnalizuj¹ca u¿ytkownikowi b³¹d podczas próby odmontowania systemu plików */
+		
+		/* zapisanie stanu, zgaszenie diod i odczekanie 200 milisekund */
+		if((PIND & (1 << PIND7)))
+		{
+			device_flags.led1 = 1;
+			PORTD &= 127;
+		}
+		if((PIND & (1 << PIND6)))
+		{
+			device_flags.led2 = 1;
+			PORTD &= 191;
+		}
+		_delay_ms(200);
+		
+		/* migniêcie diodami 3 razy: 200 ms œwiecenia i 100 ms nieœwiecenia */
+		for(i = 0; i < 3; ++i)
+		{
+			PORTD |= 192;
+			_delay_ms(200);
+			
+			PORTD &= 63;
+			_delay_ms(100);
+		}
+		
+		/* przywrócenie stanu diod */
+		PORTD |= device_flags.led1 << PD7 | device_flags.led2 << PD6;
+		
+		/* wyczyszczenie flag z zapisanymi stanami diod */
+		device_flags.led1 = device_flags.led2 = 0;
+	}
 	
 	/* ponowne w³¹czenie przerwañ */
 	sei();
@@ -630,9 +544,6 @@ ISR(TIMER1_OVF_vect)
 	 * Dlatego najpierw sprawdzamy, czy licznik zawiera wartoœæ mniejsz¹ ni¿ startowa, co oznacza jego przepe³nienie. */
 	if(TCNT1 < 36239)
 	{
-		/* wy³¹czenie Timera/Countera 1 */
-		TCCR1B &= 250;
-		
 		/* zapisanie danych z bufora na kartê SD */
 		SaveBuffer();
 		
@@ -640,6 +551,9 @@ ISR(TIMER1_OVF_vect)
 		 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
 		if(device_flags.sd_communication_error > 0)
 			device_flags.buffer_full = 1;
+		else
+			/* wy³¹czenie Timera/Countera 1 */
+			TCCR1B &= 250;
 	}
 }
 

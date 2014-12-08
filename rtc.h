@@ -4,6 +4,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint-gcc.h>
+#include "utils.h"
 
 
 #pragma region ZmienneStaleMakra

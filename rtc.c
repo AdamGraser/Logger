@@ -50,7 +50,7 @@ void RtcGetTime (time *buf)
 	/* czytanie odpowiedzi z RTC */
 	TwiStart();
 	TwiWrite(0xA3);				/* adres slave-transmitter */
-	buf->seconds = TwiRead(1);	/* aktywacja bitu poTwierdzenia oznacza chêæ odczytu kolejnego bajta danych */
+	buf->seconds = TwiRead(1);	/* aktywacja bitu potwierdzenia oznacza chêæ odczytu kolejnego bajta danych */
 	buf->minutes = TwiRead(1);
 	buf->hours = TwiRead(1);
 	buf->days = TwiRead(1);
@@ -59,7 +59,10 @@ void RtcGetTime (time *buf)
 	buf->years = TwiRead(0);
 	TwiStop();
 	
-	/* TODO: sprawdzanie wartoœci bitu VL w VL_seconds i miganie jakoœ dziko diodami, jeœli to jest 1 */
+	/* jeœli najstarszy bit rejestru VL_seconds (flaga VL) ma wartoœæ 1, to oznacza utratê dok³adnoœci pomiaru czasu,
+	 * nale¿y wiêc ustawiæ odpowiedni¹ flagê globaln¹ programu */
+	if(buf->seconds & 128)
+		device_flags.vl = 1;
 	
 	/* konwersja danych z kodu BCD, pominiêcie nieistotnych bitów */
 	buf->seconds = ((((buf->seconds & 0x70) >> 4) * 10) + (buf->seconds & 0x0F));
