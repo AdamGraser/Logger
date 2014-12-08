@@ -37,8 +37,10 @@ SUBDIRS :=
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS +=  \
+../ff.c \
 ../Logger.c \
-../rtc.c
+../rtc.c \
+../sdmm.c
 
 
 PREPROCESSING_SRCS += 
@@ -48,20 +50,28 @@ ASM_SRCS +=
 
 
 OBJS +=  \
+ff.o \
 Logger.o \
-rtc.o
+rtc.o \
+sdmm.o
 
 OBJS_AS_ARGS +=  \
+ff.o \
 Logger.o \
-rtc.o
+rtc.o \
+sdmm.o
 
 C_DEPS +=  \
+ff.d \
 Logger.d \
-rtc.d
+rtc.d \
+sdmm.d
 
 C_DEPS_AS_ARGS +=  \
+ff.d \
 Logger.d \
-rtc.d
+rtc.d \
+sdmm.d
 
 OUTPUT_FILE_PATH +=Logger.elf
 
@@ -77,6 +87,10 @@ LINKER_SCRIPT_DEP+=
 
 
 # AVR32/GNU C Compiler
+
+
+
+
 
 
 

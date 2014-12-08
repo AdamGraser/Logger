@@ -12,6 +12,9 @@
  *  Dioda LED2 PD6 czerwona - sygnalizacja trwania operacji zapisu danych na kartê SD ci¹g³ym œwieceniem w trakcie trwania operacji
  */ 
 
+/// Czêstotliwoœæ taktowania procesora. Zdefiniowane dla unikniêcia ostrze¿enia kompilatora w util/delay.h
+# define F_CPU 1000000UL
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
@@ -40,14 +43,11 @@ typedef struct
 			no_sd_card:1,
 			buffer_full:1,
 			sd_communication_error:3;
-} flags = {0, 0, 0, 0, 0, 0};
+} flags;
 
 
 
 #pragma region ZmienneStaleMakra
-
-/// Czêstotliwoœæ taktowania procesora. Zdefiniowane dla unikniêcia ostrze¿enia kompilatora w util/delay.h
-# define F_CPU 1000000UL
 
 /// Rozmiar bufora (liczba 22-bajtowych elementów do przechowywania rekordów o zdarzeniach).
 #define BUFFER_SIZE 10
@@ -87,14 +87,34 @@ uint8_t buffer_index = 0;
 const char* events_names[7] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
 
 /// Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ).
-flags device_flags;
+flags device_flags = {0, 0, 0, 0, 0, 0};
 
 #pragma endregion ZmienneStaleMakra
 
 
 
 /// Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC.
-inline void RTCDefaultValues() __attribute__((always_inline))
+inline void RTCDefaultValues() __attribute__((always_inline));
+
+/**
+ * Miga zielon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
+ * @param repeats Liczba migniêæ.
+ * @param green_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
+ * @param green_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
+ */
+inline void BlinkGreen(int repeats, int green_on, int green_off) __attribute__((always_inline));
+
+/**
+ * Miga czerwon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
+ * @param repeats Liczba migniêæ.
+ * @param red_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
+ * @param red_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
+ */
+inline void BlinkRed(int repeats, int red_on, int red_off) __attribute__((always_inline));
+
+
+
+void RTCDefaultValues()
 {
 	set_rtc_values[VL_seconds] = 0;
 	set_rtc_values[Minutes] = 0;
@@ -106,24 +126,18 @@ inline void RTCDefaultValues() __attribute__((always_inline))
 
 
 
-/**
- * Miga zielon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
- * @param repeats Liczba migniêæ.
- * @param green_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
- * @param green_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
- */
-inline void BlinkGreen(int repeats, int green_on, int green_off) __attribute__((always_inline))
+void BlinkGreen(int repeats, int green_on, int green_off)
 {
 	/* zapisanie stanu, zgaszenie diody i odczekanie 'green_off' milisekund */
 	if((PIND & (1 << PIND7)))
 	{
 		device_flags.led1 = 1;
 		PORTD &= 127;
-		_delay_ms(green_off);
 	}
+	_delay_ms(green_off);
 	
 	/* migniêcie diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */
-	for(; repeats > 0; --repeats)
+	do
 	{
 		PORTD |= 128;
 		_delay_ms(green_on);
@@ -131,6 +145,7 @@ inline void BlinkGreen(int repeats, int green_on, int green_off) __attribute__((
 		PORTD &= 127;
 		_delay_ms(green_off);
 	}
+	while(--repeats);
 	
 	/* przywrócenie stanu diody */
 	PORTD |= device_flags.led1 << PD7;
@@ -141,24 +156,18 @@ inline void BlinkGreen(int repeats, int green_on, int green_off) __attribute__((
 
 
 
-/**
- * Miga czerwon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
- * @param repeats Liczba migniêæ.
- * @param red_on Czas w milisekundach, przez jaki dioda ma siê œwieciæ.
- * @param red_off Czas w milisekundach, przez jaki dioda ma siê nie œwieciæ.
- */
-inline void BlinkRed(int repeats, int red_on, int red_off) __attribute__((always_inline))
+void BlinkRed(int repeats, int red_on, int red_off)
 {
 	/* zapisanie stanu, zgaszenie diody i odczekanie 'red_off' milisekund */
 	if((PIND & (1 << PIND6)))
 	{
 		device_flags.led2 = 1;
 		PORTD &= 191;
-		_delay_ms(red_off);
 	}
+	_delay_ms(red_off);
 	
 	/* migniêcie diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */
-	for(; repeats > 0; --repeats)
+	do
 	{
 		PORTD |= 64;
 		_delay_ms(red_on);
@@ -166,6 +175,7 @@ inline void BlinkRed(int repeats, int red_on, int red_off) __attribute__((always
 		PORTD &= 191;
 		_delay_ms(red_off);
 	}
+	while(--repeats);
 	
 	/* przywrócenie stanu diody */
 	PORTD |= device_flags.led2 << PD6;
@@ -208,8 +218,6 @@ void SaveBuffer()
 	uint8_t i = 0;
 	/* przechowuje iloœæ bajtów zapisanych przez funkcjê f_write */
 	UINT bw = 0;
-	/* przechowuje rezultat dzia³ania funkcji f_write */
-	FRESULT result = FR_OK;
 	/* tymczasowy bufor na dane do zapisania na karcie SD */
 	char temp[38] = {'\0',};
 	
@@ -237,76 +245,96 @@ void SaveBuffer()
 			if(f_open(&Fil, "door-logger.txt", FA_WRITE | FA_OPEN_ALWAYS) == FR_OK)
 			{
 				/* próba ustawienia wskaŸnika w pliku na jego koñcu */
-				if(f_lseek(Fil, f_size(Fil)) == FR_OK)
+				if(f_lseek(&Fil, f_size(&Fil)) == FR_OK)
 				{
 					/* oœwiecenie diody LED2 (czerwonej) */
 					PORTD |= 1 << PD6;
 	
 					/* zapisujemy na karcie SD rekordy z bufora (zawartoœæ niepustych elementów bufora) */
-					for(i = 0; i < BUFFER_SIZE; ++i)
+					for(i = 0; i < buffer_index; ++i)
 					{
-						if(strlen(buffer[i]) > 0)
-						{
-							/* skopiowanie daty, czasu i spacji */
-							strncpy(temp, buffer[i], 18);
+						/* skopiowanie daty, czasu i spacji */
+						strncpy(temp, buffer[i], 18);
 					
-							/* skopiowanie nazwy zdarzenia */
-							strcpy(temp, events_names[buffer[i][18]]);
+						/* skopiowanie nazwy zdarzenia */
+						strcpy(temp, events_names[(int)buffer[i][18]]);
 							
-							/* dodanie znaku nowej linii na koñcu */
-							temp[strlen(temp)] = '\n';
+						/* dodanie znaku nowej linii na koñcu */
+						temp[strlen(temp)] = '\n';
 					
-							/* próba zapisu rekordu informacyjnego do pliku */
-							if((result = f_write(&Fil, temp, strlen(temp), &bw) == FR_OK))
+						/* próba zapisu rekordu informacyjnego do pliku */
+						if(f_write(&Fil, temp, strlen(temp), &bw) == FR_OK)
+						{
+							/* jeœli zapisywany rekord dotyczy zmiany ustawieñ daty i czasu w RTC */
+							if(buffer[i][18] == 6)
 							{
-								/* jeœli zapisywany rekord dotyczy zmiany ustawieñ daty i czasu w RTC */
-								if(buffer[i][18] == 6)
+								++i;
+						
+								/* dodanie znaku nowej linii na koñcu */
+								buffer[i][17] = '\n';
+									
+								/* próba zapisu tych danych do pliku */
+								if(f_write(&Fil, buffer[i], strlen(buffer[i]), &bw) != FR_OK)
 								{
-									/* wyczyszczenie elementu bufora i bufora tymczasowego */
-									memset((void*)buffer[i], 0, 20);
-									memset((void*)temp, 0, 38);
-						
-									++i;
-						
-									/* skopiowanie nowej daty i czasu, zapisanych w RTC */
-									strcpy(temp, buffer[i]);
-									
-									/* dodanie znaku nowej linii na koñcu */
-									temp[17] = '\n';
-									
-									/* próba zapisu tych danych do pliku */
-									if((result = f_write(&Fil, temp, strlen(temp), &bw) != FR_OK))
-									{
-										/* TODO: dosun¹æ bufor do lewej */
+									/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
+									device_flags.sd_communication_error = 1;
 										
-										break;
+									/* jeœli zapisano bezb³êdnie co najmniej 1 element */
+									if(i > 0)
+									{
+										/* przesuwanie zawartoœci bufora do jego pocz¹tku */
+										bw = 0;
+										
+										for(; i < buffer_index; ++i)
+										{
+											strcpy(buffer[bw], buffer[i]);
+											++bw;
+										}
+										
+										/* aktualizowanie wskaŸnika bufora */
+										buffer_index = bw + 1;
 									}
+										
+									break;
 								}
-		
-								/* wyczyszczenie elementu bufora i bufora tymczasowego */
-								memset((void*)buffer[i], 0, 20);
-								memset((void*)temp, 0, 38);
-							}
-							else
-							{
-								/* TODO: dosun¹æ bufor do lewej */
-								
-								break;
 							}
 						}
 						else
+						{
+							/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
+							device_flags.sd_communication_error = 1;
+								
+							/* jeœli zapisano bezb³êdnie co najmniej 1 element */
+							if(i > 0)
+							{
+								/* przesuwanie zawartoœci bufora do jego pocz¹tku */
+								bw = 0;
+								
+								for(; i < buffer_index; ++i)
+								{
+									strcpy(buffer[bw], buffer[i]);
+									++bw;
+								}
+								
+								/* aktualizowanie wskaŸnika bufora */
+								buffer_index = bw + 1;
+							}
+								
 							break;
+						}
 					}
 	
 					/* zgaszenie diody LED2 (czerwonej) */
 					PORTD &= 191;
-	
-					/* ustawienie wskaŸnika w buforze na pocz¹tek */
-					buffer_index = 0;
+					
+					/* jeœli nie by³o b³êdu, ca³y bufor na pewno zosta³ zapisany na karcie SD */
+					if(!device_flags.sd_communication_error)
+						/* ustawienie wskaŸnika w buforze na pocz¹tek */
+						buffer_index = 0;
 				}
 				
 				/* próba zamkniêcia pliku */
-				if(f_close(Fil) == FR_OK && result == FR_OK)
+				if(f_close(&Fil) == FR_OK && !device_flags.sd_communication_error)
 					/* aby nie pisaæ 5 razy tego samego migania diodami, równie¿ z tego case'a mo¿e nast¹piæ przejœcie do default'a,
 					 * jeœli wyst¹pi b³¹d w jednej z 4 funkcji: f_open, f_seek, f_write lub f_close (taki zbiorczy else i default zarazem) */
 					break;
@@ -314,7 +342,7 @@ void SaveBuffer()
 		
 		/* wszelkie b³êdy przy próbie zamontowania systemu plików zg³aszane s¹ u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod */
 		default:
-			/* TODO: zamigaæ diodami dla b³êdu z kart¹ SD, ustawiæ flagê b³êdu */
+			/* TODO: zamigaæ diodami dla b³êdu z kart¹ SD */
 	}
 	
 	/* próba odmontowania systemu plików */
@@ -630,8 +658,6 @@ int main(void)
 	/*                     Inicjalizacja urz¹dzenia                         */
 	/************************************************************************/
 	
-	/* wyzerowanie bufora */
-	memset((void*)buffer, 0, BUFFER_SIZE * 20);
 	/* ustawienie wartoœci domyœlnych w tablicy ustawieñ daty i godziny dla RTC */
 	RTCDefaultValues();
 	
