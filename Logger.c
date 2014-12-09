@@ -626,8 +626,7 @@ int main(void)
        PB2(INT2) wejœciowy (przerwania zewnêtrzne wywo³ywane przyciskami)
        PB1 wejœciowy (przycisk)
        PB0 wejœciowy (przycisk)*/
-	DDRB = 1 << PB7 | 1 << PB5 | 1 << PB4;
-	PORTB = 1 << PB6 | 1 << PB2 | 1 << PB1 | 1 << PB0;
+	PORTB = 1 << PB2 | 1 << PB1 | 1 << PB0;
 	
 	/* PC1 (SDA) i PC0 (SCL) s¹ wykorzystywane przez TWI, wiêc w³¹czam wewnêtrzne rezystory podci¹gaj¹ce */
 	PORTC = 1 << PC1 | 1 << PC0;
