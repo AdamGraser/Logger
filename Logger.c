@@ -222,6 +222,8 @@ void SaveBuffer()
 						/* ustawienie wskaŸnika w buforze na pocz¹tek */
 						buffer_index = 0;
 				}
+				else
+					device_flags.sd_communication_error = 1;
 				
 				/* próba zamkniêcia pliku */
 				if(f_close(&Fil) == FR_OK && !device_flags.sd_communication_error)
@@ -229,6 +231,8 @@ void SaveBuffer()
 					 * jeœli wyst¹pi b³¹d w jednej z 4 funkcji: f_open, f_seek, f_write lub f_close (taki zbiorczy else i default zarazem) */
 					break;
 			}
+			else
+				device_flags.sd_communication_error = 1;
 		
 		/* wszelkie b³êdy przy próbie zamontowania systemu plików zg³aszane s¹ u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod */
 		default:
@@ -303,7 +307,10 @@ void SaveEvent(char event)
 			/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
 			 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
 			if(device_flags.sd_communication_error)
+			{
 				device_flags.buffer_full = 1;
+				device_flags.sd_communication_error = 0;
+			}
 		}
 	}
 	
@@ -418,6 +425,14 @@ ISR(INT2_vect)
 						if(buffer_index > BUFFER_SIZE - 2)
 						{
 							SaveBuffer();
+							
+							/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+							 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
+							if(device_flags.sd_communication_error)
+							{
+								device_flags.buffer_full = 1;
+								device_flags.sd_communication_error = 0;
+							}
 						}
 					
 						/* zapisanie do bufora rekordu o zdarzeniu */
@@ -597,7 +612,10 @@ ISR(TIMER1_OVF_vect)
 		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
 		 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
 		if(device_flags.sd_communication_error)
+		{
 			device_flags.buffer_full = 1;
+			device_flags.sd_communication_error = 0;
+		}
 		else
 			/* wy³¹czenie Timera/Countera 1 */
 			TCCR1B &= 250;
