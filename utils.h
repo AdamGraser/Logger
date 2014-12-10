@@ -23,6 +23,7 @@
  * @field no_sd_card Flaga braku mo¿liwego do zamontowania systemu plików
  * @field buffer_full Flaga zape³nienia bufora przy jednoczesnym braku karty SD lub flaga b³êdu zapisu danych na kartê SD
  * @field sd_communication_error Flaga b³êdu u¿ywana wewn¹trz funkcji {@link SaveBuffer}
+ * @field interrupts Flaga determinuj¹ca mo¿liwoœæ w³¹czenia przerwañ
  */
 typedef struct
 {
@@ -133,6 +134,47 @@ extern flags device_flags;
 \
 	/* wyczyszczenie flag z zapisanym stanem diod */ \
 	device_flags.led2 = 0; \
+}
+
+
+
+/**
+ * Miga obiema diodami wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.
+ * @param repeats Liczba migniêæ.
+ * @param on Czas w milisekundach, przez jaki diody maj¹ siê œwieciæ.
+ * @param off Czas w milisekundach, przez jaki diody maj¹ siê nie œwieciæ.
+ */
+#define BlinkBoth(repeats, on, off) \
+{ \
+	/* zapisanie stanu, zgaszenie diod i odczekanie 'off' milisekund */ \
+	if((PIND & (1 << PIND7))) \
+	{ \
+		device_flags.led1 = 1; \
+		PORTD &= 127; \
+	} \
+	if((PIND & (1 << PIND6))) \
+	{ \
+		device_flags.led2 = 1; \
+		PORTD &= 191; \
+	} \
+	_delay_ms(off); \
+\
+	/* migniêcie diodami wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia */ \
+	/* zamiast tworzyæ now¹ zmienn¹, u¿yto nieu¿ywanego rejestru Output Compare Register Timer/Counter0 */ \
+	for(OCR0 = 0; OCR0 < repeats; ++OCR0) \
+	{ \
+		PORTD |= 192; \
+		_delay_ms(on); \
+\
+		PORTD &= 63; \
+		_delay_ms(off); \
+	} \
+\
+	/* przywrócenie stanu diod */ \
+	PORTD |= device_flags.led1 << PD7 | device_flags.led2 << PD6; \
+\
+	/* wyczyszczenie flag z zapisanymi stanami diod */ \
+	device_flags.led1 = device_flags.led2 = 0; \
 }
 
 

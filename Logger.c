@@ -244,35 +244,7 @@ void SaveBuffer()
 	if(f_mount(NULL, "", 1) != FR_OK)
 	{
 		/* sekwencja migniêæ diod, sygnalizuj¹ca u¿ytkownikowi b³¹d podczas próby odmontowania systemu plików */
-		
-		/* zapisanie stanu, zgaszenie diod i odczekanie 200 milisekund */
-		if((PIND & (1 << PIND7)))
-		{
-			device_flags.led1 = 1;
-			PORTD &= 127;
-		}
-		if((PIND & (1 << PIND6)))
-		{
-			device_flags.led2 = 1;
-			PORTD &= 191;
-		}
-		_delay_ms(200);
-		
-		/* migniêcie diodami 3 razy: 200 ms œwiecenia i 100 ms nieœwiecenia */
-		for(i = 0; i < 3; ++i)
-		{
-			PORTD |= 192;
-			_delay_ms(200);
-			
-			PORTD &= 63;
-			_delay_ms(100);
-		}
-		
-		/* przywrócenie stanu diod */
-		PORTD |= device_flags.led1 << PD7 | device_flags.led2 << PD6;
-		
-		/* wyczyszczenie flag z zapisanymi stanami diod */
-		device_flags.led1 = device_flags.led2 = 0;
+		BlinkBoth(3, 200, 100);
 	}
 	
 	/* ponowne w³¹czenie przerwañ, jeœli jest to mo¿liwe */
@@ -314,44 +286,62 @@ void SaveEvent(char event)
 		}
 	}
 	
-	/* sprawdzenie obecnoœci mo¿liwego do zamontowania systemu plików */
-	if(f_mount(&FatFs, "", 1) != FR_OK)
+	/* jeœli bufor jest pe³ny i brak karty SD, nastêpuje utrata informacji */
+	if(!device_flags.buffer_full)
 	{
-		/* ustawienie flagi braku karty SD */
-		device_flags.no_sd_card = 1;
+		/* sprawdzenie obecnoœci mo¿liwego do zamontowania systemu plików */
+		if(f_mount(&FatFs, "", 1) != FR_OK)
+		{
+			/* jeœli ju¿ wczeœniej stwierdzono brak karty SD, nie ma sensu dublowaæ informacji w buforze */
+			if(!device_flags.no_sd_card)
+				/* zapisywanie w buforze rekordu informuj¹cego o braku karty SD */
+				sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
+				now.hours, now.minutes, now.seconds, 4);
 		
-		/* zapisywanie w buforze rekordu informuj¹cego o braku karty SD */
-		sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
-		now.hours, now.minutes, now.seconds, 4);
+			++buffer_index;
+			
+			/* ustawienie flagi braku karty SD */
+			device_flags.no_sd_card = 1;
 		
-		++buffer_index;
+			/* zape³nienie bufora przy braku karty SD */
+			if(buffer_index >= BUFFER_SIZE)
+				device_flags.buffer_full = 1;
 		
-		/* w³¹czenie Timera/Countera0 z preskalerem 1024 */
-		TCCR0 = 1 << CS02 | 1 << CS00;
+			/* w³¹czenie Timera/Countera0 z preskalerem 1024 */
+			TCCR0 = 1 << CS02 | 1 << CS00;
+		}
+		else
+		{
+			/* próba odmontowania systemu plików */
+			if(f_mount(NULL, "", 1) != FR_OK)
+			{
+				/* sekwencja migniêæ diod, sygnalizuj¹ca u¿ytkownikowi b³¹d podczas próby odmontowania systemu plików */
+				BlinkBoth(3, 200, 100);
+			}
+		
+			/* wyczyszczenie flagi, wyzerowanie i wy³¹czenie licznika */
+			device_flags.no_sd_card = 0;
+			TCNT2 = TCNT0 = 0;
+			TCCR0 &= 250;
+		}
+	
+		/* jeœli bufor jest pe³ny i brak karty SD, nastêpuje utrata informacji */
+		if(!device_flags.buffer_full)
+		{
+			/* zapisywanie w buforze daty i czasu z RTC oraz symbolu zdarzenia jako napis o formacie "YY-MM-DD HH:ii:SS c" */
+			sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
+				now.hours, now.minutes, now.seconds, event);
+	
+			/* przy zegarze taktuj¹cym z czêst. 1 MHz, z preskalerem 1024, w ci¹gu 30 sekund licznik naliczy prawie 29297,
+			 * dlatego ustawi³em tutaj wartoœæ 65535 (max) - 29296, aby przy 29297-mej inkrementacji nast¹pi³o przepe³nienie licznika, co wywo³a przerwanie */
+			TCNT1 = 36239;
+	
+			/* w³¹czenie Timera/Countera 1, ustawienie jego preskalera na 1024 */
+			TCCR1B = 1 << CS12 | 1 << CS10;
+	
+			++buffer_index;
+		}
 	}
-	else
-	{
-		/* próba odmontowania systemu plików */
-		f_mount(NULL, "", 1);
-		
-		/* wyczyszczenie flagi, wyzerowanie i wy³¹czenie licznika */
-		device_flags.no_sd_card = 0;
-		TCNT2 = TCNT0 = 0;
-		TCCR0 &= 250;
-	}
-	
-	/* zapisywanie w buforze daty i czasu z RTC oraz symbolu zdarzenia jako napis o formacie "YY-MM-DD HH:ii:SS c" */
-	sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
-		now.hours, now.minutes, now.seconds, event);
-	
-	/* przy zegarze taktuj¹cym z czêst. 1 MHz, z preskalerem 1024, w ci¹gu 30 sekund licznik naliczy prawie 29297,
-	 * dlatego ustawi³em tutaj wartoœæ 65535 (max) - 29296, aby przy 29297-mej inkrementacji nast¹pi³o przepe³nienie licznika, co wywo³a przerwanie */
-	TCNT1 = 36239;
-	
-	/* w³¹czenie Timera/Countera 1, ustawienie jego preskalera na 1024 */
-	TCCR1B = 1 << CS12 | 1 << CS10;
-	
-	++buffer_index;
 }
 
 
