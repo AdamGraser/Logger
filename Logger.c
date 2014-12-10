@@ -447,7 +447,11 @@ ISR(INT2_vect)
 				break;
 				
 				/* sygnalizacja przejœcia do kolejnej sk³adowej */
-				default:
+				case 1:
+				case 2:
+				case 3:
+				case 4:
+				case 5:
 					BlinkGreen(set_rtc + 1, 200, 100);
 			}
 		}
@@ -460,7 +464,7 @@ ISR(INT2_vect)
 		{
 			set_rtc_cancelled = 0xFF;
 		}
-		else
+		else if(set_rtc > -1 && set_rtc < 6)
 		{
 			/* pojedyncze wciœniêcie przycisku to zwiêkszenie bie¿¹cej sk³adowej o 1 */
 			++set_rtc_values[set_rtc];
