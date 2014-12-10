@@ -13,7 +13,7 @@ void TwiStart(void)
 void TwiStop(void)
 {
 	TWCR = (1 << TWINT)|(1 << TWEN)|(1 << TWSTO);
-	while((TWCR & (1 << TWSTO)));
+	while(!(TWCR & (1 << TWSTO)));
 }
 
 

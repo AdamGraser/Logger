@@ -57,7 +57,7 @@ uint8_t set_rtc_values[6];
 time now;
 
 /* Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ). */
-flags device_flags = {0, 0, 0, 0, 0, 0};
+flags device_flags = {0, 0, 0, 0, 0, 0, 1};
 
 /// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
 char buffer[BUFFER_SIZE][20] = {{0,},};
@@ -271,8 +271,9 @@ void SaveBuffer()
 		device_flags.led1 = device_flags.led2 = 0;
 	}
 	
-	/* ponowne w³¹czenie przerwañ */
-	sei();
+	/* ponowne w³¹czenie przerwañ, jeœli jest to mo¿liwe */
+	if(device_flags.interrupts)
+		sei();
 }
 
 
@@ -290,7 +291,7 @@ void SaveEvent(char event)
 	RtcGetTime(&now);
 	
 	/* jeœli bufor jest ju¿ pe³ny, nale¿y wymusiæ zapis jego zawartoœci na kartê SD */
-	if(buffer_index == BUFFER_SIZE)
+	if(buffer_index >= BUFFER_SIZE)
 	{
 		/* jeœli jednak wczeœniej zg³oszony zosta³ brak karty, nale¿y natychmiast zg³osiæ zape³nienie bufora */
 		if(device_flags.no_sd_card == 1)
@@ -301,7 +302,7 @@ void SaveEvent(char event)
 			
 			/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
 			 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
-			if(device_flags.sd_communication_error > 0)
+			if(device_flags.sd_communication_error)
 				device_flags.buffer_full = 1;
 		}
 	}
@@ -313,7 +314,7 @@ void SaveEvent(char event)
 		device_flags.no_sd_card = 1;
 		
 		/* zapisywanie w buforze rekordu informuj¹cego o braku karty SD */
-		sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
+		sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
 		now.hours, now.minutes, now.seconds, 4);
 		
 		++buffer_index;
@@ -333,7 +334,7 @@ void SaveEvent(char event)
 	}
 	
 	/* zapisywanie w buforze daty i czasu z RTC oraz symbolu zdarzenia jako napis o formacie "YY-MM-DD HH:ii:SS c" */
-	sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d %c", now.years, now.months, now.days,
+	sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
 		now.hours, now.minutes, now.seconds, event);
 	
 	/* przy zegarze taktuj¹cym z czêst. 1 MHz, z preskalerem 1024, w ci¹gu 30 sekund licznik naliczy prawie 29297,
@@ -355,12 +356,18 @@ void SaveEvent(char event)
  */
 ISR(INT1_vect)
 {
+	/* zablokowanie funkcji SaveBuffer mo¿liwoœci w³¹czania przerwañ */
+	device_flags.interrupts = 0;
+	
 	/* zapisanie do bufora rekordu o zdarzeniu */
 	
 	if(PIND & (1 << PD3))	/* PD3 == 1 -> drzwi otwarte */
 		SaveEvent(0);
 	else					/* PD3 == 0 -> drzwi zamkniête */
 		SaveEvent(1);
+	
+	/* umo¿liwienie funkcji SaveBuffer w³¹czania przerwañ */
+	device_flags.interrupts = 1;
 }
 
 
@@ -372,6 +379,9 @@ ISR(INT1_vect)
  */
 ISR(INT2_vect)
 {
+	/* zablokowanie funkcji SaveBuffer mo¿liwoœci w³¹czania przerwañ */
+	device_flags.interrupts = 0;
+	
 	/* wciœniêto przycisk PB0 */
 	if(!(PINB & 1))
 	{
@@ -414,7 +424,7 @@ ISR(INT2_vect)
 						SaveEvent(6);
 						
 						/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
-						sprintf(buffer[buffer_index], "%2d-%2d-%2d %2d:%2d:%2d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
+						sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
 							set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
 						
 						/* przesuniêcie wskaŸnika w buforze o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
@@ -513,6 +523,9 @@ ISR(INT2_vect)
 			BlinkRed(1, 200, 1);
 		}
 	}
+	
+	/* umo¿liwienie funkcji SaveBuffer w³¹czania przerwañ */
+	device_flags.interrupts = 1;
 }
 
 
@@ -526,6 +539,9 @@ ISR(INT2_vect)
  */
 ISR(TIMER0_OVF_vect)
 {
+	/* zablokowanie funkcji SaveBuffer mo¿liwoœci w³¹czania przerwañ */
+	device_flags.interrupts = 0;
+	
 	/* Karta mog³a zostaæ wykryta wczeœniej w SaveEvent */
 	if(device_flags.no_sd_card == 1)
 	{
@@ -553,6 +569,9 @@ ISR(TIMER0_OVF_vect)
 			}
 		}
 	}
+	
+	/* umo¿liwienie funkcji SaveBuffer w³¹czania przerwañ */
+	device_flags.interrupts = 1;
 }
 
 
@@ -564,6 +583,9 @@ ISR(TIMER0_OVF_vect)
  */
 ISR(TIMER1_OVF_vect)
 {
+	/* zablokowanie funkcji SaveBuffer mo¿liwoœci w³¹czania przerwañ */
+	device_flags.interrupts = 0;
+	
 	/* Mog³o teraz wyst¹piæ przerwanie o wy¿szym priorytecie lub takowe mog³oby byæ ju¿ obs³ugiwane gdy wyst¹pi³o przerwanie z TIMER1.
 	 * Przerwania o wy¿szych priorytetach mog¹ (poœrednio lub bezpoœrednio) wywo³aæ SaveBuffer, a wtedy poni¿szy kod nie ma racji bytu.
 	 * Dlatego najpierw sprawdzamy, czy licznik zawiera wartoœæ mniejsz¹ ni¿ startowa, co oznacza jego przepe³nienie. */
@@ -574,12 +596,15 @@ ISR(TIMER1_OVF_vect)
 		
 		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
 		 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
-		if(device_flags.sd_communication_error > 0)
+		if(device_flags.sd_communication_error)
 			device_flags.buffer_full = 1;
 		else
 			/* wy³¹czenie Timera/Countera 1 */
 			TCCR1B &= 250;
 	}
+	
+	/* umo¿liwienie funkcji SaveBuffer w³¹czania przerwañ */
+	device_flags.interrupts = 1;
 }
 
 
@@ -589,9 +614,6 @@ int main(void)
 {
 	/* zapisanie informacji o w³¹czeniu urz¹dzenia */
 	SaveEvent(2);
-	
-	/* oœwiecenie diody LED1 (zielonej) */
-	PORTD |= 1 << PD7;
 	
 	/************************************************************************/
 	/*                     Inicjalizacja urz¹dzenia                         */
@@ -638,11 +660,14 @@ int main(void)
 	
 #pragma endregion UstawieniaPinow
 	
+	/* oœwiecenie diody LED1 (zielonej) */
+	PORTD |= 1 << PD7;
+	
 #pragma region UstawieniaTWI
 
 	/* w³¹czam TWI (ustawienie bitu TWEN - TWI ENable)
 	   TWCR - TWI Control Register */
-	TWCR |= 1 << TWEA;
+	/*TWCR |= 1 << TWEA;*/
 	
 	/* ustawienie czêstotliwoœci dla TWI:
 	   SCL frequency = CPU Clock frequency / (16 + 2(TWBR) * 4^TWPS)
