@@ -28,8 +28,8 @@
 
 #pragma region ZmienneStaleMakra
 
-/// Rozmiar bufora (liczba 22-bajtowych elementów do przechowywania rekordów o zdarzeniach).
-#define BUFFER_SIZE 10
+/// Rozmiar bufora (liczba 20-bajtowych elementów do przechowywania rekordów o zdarzeniach).
+#define BUFFER_SIZE 20
 
 /// Przestrzeñ robocza FatFS potrzebna dla ka¿dego volumenu
 FATFS FatFs;
@@ -317,6 +317,10 @@ void SaveEvent(char event)
 			{
 				/* sekwencja migniêæ diod, sygnalizuj¹ca u¿ytkownikowi b³¹d podczas próby odmontowania systemu plików */
 				BlinkBoth(3, 200, 100);
+				
+				/* _delay wy³¹cza przerwania - ponowne w³¹czenie przerwañ, jeœli jest to mo¿liwe */
+				if(device_flags.interrupts)
+					sei();
 			}
 		
 			/* wyczyszczenie flagi, wyzerowanie i wy³¹czenie licznika */
@@ -624,6 +628,10 @@ ISR(TIMER1_OVF_vect)
 /// Funkcja g³ówna programu.
 int main(void)
 {
+	/* zmienna iteracyjna u¿ywana przy seriach 50-milisekundowych opóŸnieñ w pêtli g³ównej programu
+	 * auto - próba wymuszenia alokacji tej zmiennej w rejestrze procesora */
+	auto uint8_t delay = 0;
+	
 	/* zapisanie informacji o w³¹czeniu urz¹dzenia */
 	SaveEvent(2);
 	
@@ -720,14 +728,39 @@ int main(void)
 		else
 			PORTD &= 191;
 		
-		/* jeœli brak karty SD, zape³nienie bufora powoduje 2 razy czêstsze miganie diody */
+		/* Jeœli brak karty SD, zape³nienie bufora powoduje 2 razy czêstsze miganie diody.
+		 * Poniewa¿ funkcje _delay wy³¹czaj¹ przerwania, trzeba je w³¹czaæ po zakoñczeniu oczekiwania.
+		 * Poniewa¿ odliczanie 10 sekund do ponownego sprawdzenia obecnoœci karty SD wi¹¿e siê z 39 przerwaniami w ci¹gu tych ok. 10 sekund,
+		 * jedno przerwanie pojawia siê co ok. 0,25 s. Dlatego opóŸnienia dzielone s¹ na 50-milisekundowe odcinki, by co 50 ms mog³o zostaæ obs³u¿one przerwanie. */
 		if(device_flags.buffer_full)
 		{
-			_delay_ms(500);
+			delay = 10;
+			
+			do
+			{
+				_delay_ms(50);
+				sei();
+			} while (--delay);
+			
 			PORTD ^= 64;
-			_delay_ms(500);
+			
+			delay = 10;
+			
+			do
+			{
+				_delay_ms(50);
+				sei();
+			} while (--delay);
 		}
 		else
-			_delay_ms(1000);
+		{
+			delay = 20;
+			
+			do 
+			{
+				_delay_ms(50);
+				sei();
+			} while (--delay);
+		}
     }
 }
