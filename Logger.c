@@ -57,13 +57,13 @@ uint8_t set_rtc_values[6];
 time now;
 
 /* Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ). */
-flags device_flags = {0, 0, 0, 0, 0, 0, 1};
+static volatile flags device_flags = {0, 0, 0, 0, 0, 0, 1};
 
 /// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
-char buffer[BUFFER_SIZE][20] = {{0,},};
+static volatile char buffer[BUFFER_SIZE][20] = {{0,},};
 
 /// Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu.
-uint8_t buffer_index = 0;
+static volatile uint8_t buffer_index = 0;
 
 /// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
 const char* events_names[7] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
@@ -223,6 +223,7 @@ void SaveBuffer()
 						buffer_index = 0;
 				}
 				else
+					/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
 					device_flags.sd_communication_error = 1;
 				
 				/* próba zamkniêcia pliku */
@@ -231,13 +232,15 @@ void SaveBuffer()
 					 * jeœli wyst¹pi b³¹d w jednej z 4 funkcji: f_open, f_seek, f_write lub f_close (taki zbiorczy else i default zarazem) */
 					break;
 			}
-			else
-				device_flags.sd_communication_error = 1;
 		
-		/* wszelkie b³êdy przy próbie zamontowania systemu plików zg³aszane s¹ u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod */
+		/* b³¹d, który wyst¹pi³ podczas komunikacji z kart¹ SD, zg³aszany jest u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod
+		 * (ten default jest zarazem obs³ug¹ b³êdów przy próbie otwarcia/utworzenia pliku "door-logger.txt") */
 		default:
 			/* sekwencja migniêæ diody czerwonej, sygnalizuj¹ca u¿ytkownikowi b³¹d komunikacji z kart¹ SD */
 			BlinkRed(3, 200, 100);
+			
+			/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
+			device_flags.sd_communication_error = 1;
 	}
 	
 	/* próba odmontowania systemu plików */
@@ -283,6 +286,9 @@ void SaveEvent(char event)
 				device_flags.buffer_full = 1;
 				device_flags.sd_communication_error = 0;
 			}
+			else
+				/* wyczyszczenie flagi pe³nego bufora przy braku karty SD */
+				device_flags.buffer_full = 0;
 		}
 	}
 	
@@ -427,6 +433,9 @@ ISR(INT2_vect)
 								device_flags.buffer_full = 1;
 								device_flags.sd_communication_error = 0;
 							}
+							else
+								/* wyczyszczenie flagi pe³nego bufora przy braku karty SD */
+								device_flags.buffer_full = 0;
 						}
 					
 						/* zapisanie do bufora rekordu o zdarzeniu */
@@ -441,6 +450,9 @@ ISR(INT2_vect)
 					
 						/* zapisanie w RTC nowych ustawieñ daty i godziny */
 						RtcSetTime(set_rtc_values);
+						
+						/* czyszczenie flagi vl */
+						device_flags.vl = 0;
 						
 						/* sygnalizacja wys³ania nowych ustawieñ do RTC */
 						BlinkGreen(1, 1500, 100);
@@ -533,7 +545,7 @@ ISR(INT2_vect)
 #pragma endregion KontrolaZakresuDatyICzasu
 			
 			/* sygnalizacja inkrementacji bie¿¹cej sk³adowej */
-			BlinkRed(1, 200, 1);
+			BlinkRed(1, 200, 50);
 		}
 	}
 	
@@ -545,7 +557,7 @@ ISR(INT2_vect)
 
 /**
  * Obs³uga przerwañ z 8-bitowego licznika Timer/Counter0.<br>
- * Przepe³nienie licznika powoduje inkrementacjê licznika Timer/Counter2. Osi¹gniêcie przez licznik Timer/Counter2 wartoœci 39 oznacza up³yw ok. 10 sekund i 
+ * Przepe³nienie licznika powoduje inkrementacjê rejestru OCR0. Osi¹gniêcie przez rejestr OCR0 wartoœci 39 oznacza up³yw ok. 10 sekund i 
  * jest to jednoznaczne ze sprawdzeniem obecnoœci mo¿liwego do zamontowania systemu plików i wyzerowania liczników. Jeœli takowy system jest obecny, licznik zostaje 
  * wy³¹czony. W przeciwnym razie odliczanie 10 sekund jest powtarzane.
  * @param TIMER0_OVF_vect Wektor przerwania przy przepe³nieniu 8-bitowego licznika Timer/Counter0.
@@ -558,12 +570,12 @@ ISR(TIMER0_OVF_vect)
 	/* Karta mog³a zostaæ wykryta wczeœniej w SaveEvent */
 	if(device_flags.no_sd_card == 1)
 	{
-		++TCNT2;
+		++OCR0;
 	
 		/* jeœli up³ynê³o co najmniej 10 sekund */
-		if(TCNT2 == 39)
+		if(OCR0 == 39)
 		{
-			TCNT2 = TCNT0 = 0;
+			OCR0 = TCNT0 = 0;
 		
 			/* sprawdzenie obecnoœci mo¿liwego do zamontowania systemu plików */
 			if(f_mount(&FatFs, "", 1) == FR_OK)
@@ -615,8 +627,13 @@ ISR(TIMER1_OVF_vect)
 			device_flags.sd_communication_error = 0;
 		}
 		else
+		{
 			/* wy³¹czenie Timera/Countera 1 */
 			TCCR1B &= 250;
+			
+			/* wyczyszczenie flagi pe³nego bufora przy braku karty SD */
+			device_flags.buffer_full = 0;
+		}
 	}
 	
 	/* umo¿liwienie funkcji SaveBuffer w³¹czania przerwañ */
