@@ -39,8 +39,8 @@ SUBDIRS :=
 C_SRCS +=  \
 ../ff.c \
 ../Logger.c \
-../rtc.c \
-../sdmm.c
+../mmc_avr.c \
+../rtc.c
 
 
 PREPROCESSING_SRCS += 
@@ -52,26 +52,26 @@ ASM_SRCS +=
 OBJS +=  \
 ff.o \
 Logger.o \
-rtc.o \
-sdmm.o
+mmc_avr.o \
+rtc.o
 
 OBJS_AS_ARGS +=  \
 ff.o \
 Logger.o \
-rtc.o \
-sdmm.o
+mmc_avr.o \
+rtc.o
 
 C_DEPS +=  \
 ff.d \
 Logger.d \
-rtc.d \
-sdmm.d
+mmc_avr.d \
+rtc.d
 
 C_DEPS_AS_ARGS +=  \
 ff.d \
 Logger.d \
-rtc.d \
-sdmm.d
+mmc_avr.d \
+rtc.d
 
 OUTPUT_FILE_PATH +=Logger.elf
 

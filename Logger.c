@@ -57,13 +57,13 @@ uint8_t set_rtc_values[6];
 time now;
 
 /* Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ). */
-static volatile flags device_flags = {0, 0, 0, 0, 0, 0, 1};
+volatile flags device_flags = {0, 0, 0, 0, 0, 0, 1};
 
 /// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
-static volatile char buffer[BUFFER_SIZE][20] = {{0,},};
+char buffer[BUFFER_SIZE][20] = {{0,},};
 
 /// Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu.
-static volatile uint8_t buffer_index = 0;
+volatile uint8_t buffer_index = 0;
 
 /// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
 const char* events_names[7] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
