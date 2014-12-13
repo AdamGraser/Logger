@@ -53,7 +53,7 @@ typedef struct
 extern uint8_t set_rtc_values[6];
 
 /// Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ).
-extern flags device_flags;
+extern volatile flags device_flags;
 
 
 
