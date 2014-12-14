@@ -649,9 +649,6 @@ int main(void)
 	 * auto - próba wymuszenia alokacji tej zmiennej w rejestrze procesora */
 	auto uint8_t delay = 0;
 	
-	/* zapisanie informacji o w³¹czeniu urz¹dzenia */
-	SaveEvent(2);
-	
 	/************************************************************************/
 	/*                     Inicjalizacja urz¹dzenia                         */
 	/************************************************************************/
@@ -699,6 +696,9 @@ int main(void)
 	
 	/* oœwiecenie diody LED1 (zielonej) */
 	PORTD |= 1 << PD7;
+	
+	/* zapisanie informacji o w³¹czeniu urz¹dzenia */
+	SaveEvent(2);
 	
 #pragma region UstawieniaTWI
 
