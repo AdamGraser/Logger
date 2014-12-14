@@ -438,24 +438,30 @@ ISR(INT2_vect)
 								device_flags.buffer_full = 0;
 						}
 					
-						/* zapisanie do bufora rekordu o zdarzeniu */
-						SaveEvent(6);
+						if(!device_flags.buffer_full)
+						{
+							/* zapisanie do bufora rekordu o zdarzeniu */
+							SaveEvent(6);
 						
-						/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
-						sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
-							set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
+							/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
+							sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
+								set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
 						
-						/* przesuniêcie wskaŸnika w buforze o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
-						++buffer_index;
+							/* przesuniêcie wskaŸnika w buforze o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
+							++buffer_index;
 					
-						/* zapisanie w RTC nowych ustawieñ daty i godziny */
-						RtcSetTime(set_rtc_values);
+							/* zapisanie w RTC nowych ustawieñ daty i godziny */
+							RtcSetTime(set_rtc_values);
 						
-						/* czyszczenie flagi vl */
-						device_flags.vl = 0;
+							/* czyszczenie flagi vl */
+							device_flags.vl = 0;
 						
-						/* sygnalizacja wys³ania nowych ustawieñ do RTC */
-						BlinkGreen(1, 1500, 100);
+							/* sygnalizacja wys³ania nowych ustawieñ do RTC */
+							BlinkGreen(1, 1500, 100);
+						}
+						else
+							/* sygnalizacja anulowania zmiany ustawieñ */
+							BlinkRed(3, 100, 100);
 					}
 				
 					/* zakoñczenie ustawieñ daty i godziny dla RTC */
