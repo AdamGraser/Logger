@@ -37,18 +37,18 @@
 #include <avr/io.h>			/* Include device specific declareation file here */
 
 
-#define DO_INIT()					/* Initialize port for MMC DO as input */
-#define DO			(PINB & 0x40)	/* Test for MMC DO ('H':true, 'L':false) */
-
-#define DI_INIT()	DDRB  |= 0x20	/* Initialize port for MMC DI as output */
-#define DI_H()		PORTB |= 0x20	/* Set MMC DI "high" */
-#define DI_L()		PORTB &= 0xDF	/* Set MMC DI "low" */
-
-#define CK_INIT()	DDRB  |= 0x80	/* Initialize port for MMC SCLK as output */
-#define CK_H()		PORTB |= 0x80	/* Set MMC SCLK "high" */
-#define	CK_L()		PORTB &= 0x7F	/* Set MMC SCLK "low" */
-
-#define CS_INIT()	DDRB  |= 0x10	/* Initialize port for MMC CS as output */
+// #define DO_INIT()					/* Initialize port for MMC DO as input */
+// #define DO			(PINB & 0x40)	/* Test for MMC DO ('H':true, 'L':false) */
+// 
+// #define DI_INIT()	DDRB  |= 0x20	/* Initialize port for MMC DI as output */
+// #define DI_H()		PORTB |= 0x20	/* Set MMC DI "high" */
+// #define DI_L()		PORTB &= 0xDF	/* Set MMC DI "low" */
+// 
+// #define CK_INIT()	DDRB  |= 0x80	/* Initialize port for MMC SCLK as output */
+// #define CK_H()		PORTB |= 0x80	/* Set MMC SCLK "high" */
+// #define	CK_L()		PORTB &= 0x7F	/* Set MMC SCLK "low" */
+// 
+// #define CS_INIT()	DDRB  |= 0x10	/* Initialize port for MMC CS as output */
 #define	CS_H()		PORTB |= 0x10	/* Set MMC CS "high" */
 #define CS_L()		PORTB &= 0xEF	/* Set MMC CS "low" */
 
@@ -132,27 +132,29 @@ void xmit_mmc (
 	UINT bc				/* Number of bytes to send */
 )
 {
-	BYTE d;
+	/*BYTE d;*/
 
 
 	do {
-		d = *buff++;	/* Get a byte to be sent */
-		if (d & 0x80) DI_H(); else DI_L();	/* bit7 */
-		CK_H(); CK_L();
-		if (d & 0x40) DI_H(); else DI_L();	/* bit6 */
-		CK_H(); CK_L();
-		if (d & 0x20) DI_H(); else DI_L();	/* bit5 */
-		CK_H(); CK_L();
-		if (d & 0x10) DI_H(); else DI_L();	/* bit4 */
-		CK_H(); CK_L();
-		if (d & 0x08) DI_H(); else DI_L();	/* bit3 */
-		CK_H(); CK_L();
-		if (d & 0x04) DI_H(); else DI_L();	/* bit2 */
-		CK_H(); CK_L();
-		if (d & 0x02) DI_H(); else DI_L();	/* bit1 */
-		CK_H(); CK_L();
-		if (d & 0x01) DI_H(); else DI_L();	/* bit0 */
-		CK_H(); CK_L();
+		SPDR = *buff++;				/* Get a byte to be sent, start transmission */
+		while(!(SPSR & (1<<SPIF)));	/* Wait for transmission complete */
+// 		d = *buff++;	/* Get a byte to be sent */
+// 		if (d & 0x80) DI_H(); else DI_L();	/* bit7 */
+// 		CK_H(); CK_L();
+// 		if (d & 0x40) DI_H(); else DI_L();	/* bit6 */
+// 		CK_H(); CK_L();
+// 		if (d & 0x20) DI_H(); else DI_L();	/* bit5 */
+// 		CK_H(); CK_L();
+// 		if (d & 0x10) DI_H(); else DI_L();	/* bit4 */
+// 		CK_H(); CK_L();
+// 		if (d & 0x08) DI_H(); else DI_L();	/* bit3 */
+// 		CK_H(); CK_L();
+// 		if (d & 0x04) DI_H(); else DI_L();	/* bit2 */
+// 		CK_H(); CK_L();
+// 		if (d & 0x02) DI_H(); else DI_L();	/* bit1 */
+// 		CK_H(); CK_L();
+// 		if (d & 0x01) DI_H(); else DI_L();	/* bit0 */
+// 		CK_H(); CK_L();
 	} while (--bc);
 }
 
@@ -168,29 +170,32 @@ void rcvr_mmc (
 	UINT bc		/* Number of bytes to receive */
 )
 {
-	BYTE r;
+	/*BYTE r;*/
 
 
-	DI_H();	/* Send 0xFF */
+	/*DI_H();	/ * Send 0xFF * /*/
 
 	do {
-		r = 0;	 if (DO) r++;	/* bit7 */
-		CK_H(); CK_L();
-		r <<= 1; if (DO) r++;	/* bit6 */
-		CK_H(); CK_L();
-		r <<= 1; if (DO) r++;	/* bit5 */
-		CK_H(); CK_L();
-		r <<= 1; if (DO) r++;	/* bit4 */
-		CK_H(); CK_L();
-		r <<= 1; if (DO) r++;	/* bit3 */
-		CK_H(); CK_L();
-		r <<= 1; if (DO) r++;	/* bit2 */
-		CK_H(); CK_L();
-		r <<= 1; if (DO) r++;	/* bit1 */
-		CK_H(); CK_L();
-		r <<= 1; if (DO) r++;	/* bit0 */
-		CK_H(); CK_L();
-		*buff++ = r;			/* Store a received byte */
+		SPDR = 0xFF;				/* Send 0xFF */
+		while(!(SPSR & (1<<SPIF)));	/* Wait for transmission complete */
+		*buff++ = SPDR;				/* Store a received byte */
+// 		r = 0;	 if (DO) r++;	/* bit7 */
+// 		CK_H(); CK_L();
+// 		r <<= 1; if (DO) r++;	/* bit6 */
+// 		CK_H(); CK_L();
+// 		r <<= 1; if (DO) r++;	/* bit5 */
+// 		CK_H(); CK_L();
+// 		r <<= 1; if (DO) r++;	/* bit4 */
+// 		CK_H(); CK_L();
+// 		r <<= 1; if (DO) r++;	/* bit3 */
+// 		CK_H(); CK_L();
+// 		r <<= 1; if (DO) r++;	/* bit2 */
+// 		CK_H(); CK_L();
+// 		r <<= 1; if (DO) r++;	/* bit1 */
+// 		CK_H(); CK_L();
+// 		r <<= 1; if (DO) r++;	/* bit0 */
+// 		CK_H(); CK_L();
+// 		*buff++ = r;			/* Store a received byte */
 	} while (--bc);
 }
 
@@ -266,7 +271,7 @@ int rcvr_datablock (	/* 1:OK, 0:Failed */
 	UINT tmr;
 
 
-	for (tmr = 1000; tmr; tmr--) {	/* Wait for data packet in timeout of 100ms */
+	for (tmr = 2000; tmr; tmr--) {	/* Wait for data packet in timeout of 200ms */
 		rcvr_mmc(d, 1);
 		if (d[0] != 0xFF) break;
 		dly_us(100);
@@ -392,16 +397,20 @@ DSTATUS disk_initialize (
 {
 	BYTE n, ty, cmd, buf[4];
 	UINT tmr;
-	DSTATUS s;
+	/*DSTATUS s;*/
 
 
 	if (drv) return RES_NOTRDY;
 
 	dly_us(10000);			/* 10ms */
-	CS_INIT(); CS_H();		/* Initialize port pin tied to CS */
-	CK_INIT(); CK_L();		/* Initialize port pin tied to SCLK */
-	DI_INIT();				/* Initialize port pin tied to DI */
-	DO_INIT();				/* Initialize port pin tied to DO */
+	PORTB |= (1 << PB5) | (1 << PB4);				/* Initialize SCK, MOSI and SS as output */
+	DDRB = (1 << DDB7) | (1 << DDB5) | (1 << DDB4);
+	SPCR = (1 << SPE) | (1 << MSTR) | (1 << SPR1);	/* Enable SPI, Master, set clock rate fck/64 */
+	SPSR = 1 << SPI2X;								/* Double the clock rate (now: fck/32) */
+// 	CS_INIT(); CS_H();		/* Initialize port pin tied to CS */
+// 	CK_INIT(); CK_L();		/* Initialize port pin tied to SCLK */
+// 	DI_INIT();				/* Initialize port pin tied to DI */
+// 	DO_INIT();				/* Initialize port pin tied to DO */
 
 	for (n = 10; n; n--) rcvr_mmc(buf, 1);	/* Apply 80 dummy clocks and the card gets ready to receive command */
 
@@ -434,12 +443,20 @@ DSTATUS disk_initialize (
 		}
 	}
 	CardType = ty;
-	s = ty ? 0 : STA_NOINIT;
-	Stat = s;
-
+// 	s = ty ? 0 : STA_NOINIT;
+// 	Stat = s;
 	deselect();
+	
+	if (ty)						/* Initialization succeded */
+	{
+		Stat &= ~STA_NOINIT;	/* Clear STA_NOINIT */
+		SPCR &= 252;			/* set clock rate fck/2 (fck/4 + SPI 2x mode enabled) */
+	}
+	else
+		Stat |= STA_NOINIT;
 
-	return s;
+/*	return s;*/
+	return Stat;
 }
 
 

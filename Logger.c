@@ -678,10 +678,10 @@ int main(void)
 
 	/* domyœlne wartoœci w rejestrach DDRX i PORTX to 0, wpisujê wiêc tylko 1 tam, gdzie to potrzebne */
 	
-	/* PB7(SCK) wyjœciowy (zegar dla karty SD)
-       PB6(MISO) wejœciowy (dane odbierane z karty SD)
-       PB5(MOSI) wyjœciowy (dane wysy³ane do karty SD)
-       PB4(SS) wyjœciowy (slave select)
+	/* PB7(SCK) wyjœciowy (zegar dla karty SD)			}
+       PB6(MISO) wejœciowy (dane odbierane z karty SD)	} inicjalizacja w
+       PB5(MOSI) wyjœciowy (dane wysy³ane do karty SD)	} plku sdmm.c
+       PB4(SS) wyjœciowy (slave select)					}
        PB2(INT2) wejœciowy (przerwania zewnêtrzne wywo³ywane przyciskami)
        PB1 wejœciowy (przycisk)
        PB0 wejœciowy (przycisk)*/
