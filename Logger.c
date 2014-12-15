@@ -57,7 +57,7 @@ uint8_t set_rtc_values[6];
 time now;
 
 /* Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ). */
-volatile flags device_flags = {0, 0, 0, 0, 0, 0, 1};
+volatile flags device_flags = {0, 0, 0, 0, 0, 0, 1, 0};
 
 /// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
 char buffer[BUFFER_SIZE][20] = {{0,},};
@@ -132,7 +132,7 @@ void SaveBuffer()
 		/* jeœli pomyœlnie uda³o siê zamontowaæ system FAT, nastêpuje przejœcie do zapisu danych */
 		case FR_OK:
 			/* próba otwarcia/utworzenia pliku, do którego zapisywane s¹ informacje o wykrytych przez urz¹dzenie zdarzeniach */
-			if(f_open(&Fil, "door-logger.txt", FA_WRITE | FA_OPEN_ALWAYS) == FR_OK)
+			if(f_open(&Fil, "DoorLog.txt", FA_WRITE | FA_OPEN_ALWAYS) == FR_OK)
 			{
 				/* próba ustawienia wskaŸnika w pliku na jego koñcu */
 				if(f_lseek(&Fil, f_size(&Fil)) == FR_OK)
@@ -140,17 +140,22 @@ void SaveBuffer()
 					/* oœwiecenie diody LED2 (czerwonej) */
 					PORTD |= 1 << PD6;
 	
-					/* zapisujemy na karcie SD rekordy z bufora (zawartoœæ niepustych elementów bufora) */
+					/* zapisanie na karcie SD rekordów z bufora */
 					for(i = 0; i < buffer_index; ++i)
 					{
-						/* skopiowanie daty, czasu i spacji */
+						/* skopiowanie daty, czasu i spacji, z uwzglêdnieniem znaku \0 na potrzeby funkcji strcat */
 						strncpy(temp, buffer[i], 18);
+						temp[18] = '\0';
 					
 						/* skopiowanie nazwy zdarzenia */
-						strcpy(temp, events_names[(int)buffer[i][18]]);
+						strcat(temp, events_names[(int)buffer[i][18]]);
 							
-						/* dodanie znaku nowej linii na koñcu */
-						temp[strlen(temp)] = '\n';
+						/* dodanie znaku nowej linii (CRLF) na koñcu, z uwzglêdnieniem znaku \0 na potrzeby funkcjo f_write */
+						bw = strlen(temp);
+						temp[bw]     = '\r';
+						temp[bw + 1] = '\n';
+						temp[bw + 2] = '\0';
+						
 					
 						/* próba zapisu rekordu informacyjnego do pliku */
 						if(f_write(&Fil, temp, strlen(temp), &bw) == FR_OK)
@@ -160,8 +165,9 @@ void SaveBuffer()
 							{
 								++i;
 						
-								/* dodanie znaku nowej linii na koñcu */
-								buffer[i][17] = '\n';
+								/* dodanie znaku nowej linii (CRLF) na koñcu */
+								buffer[i][17] = '\r';
+								buffer[i][18] = '\n';
 									
 								/* próba zapisu tych danych do pliku */
 								if(f_write(&Fil, buffer[i], strlen(buffer[i]), &bw) != FR_OK)
@@ -234,7 +240,7 @@ void SaveBuffer()
 			}
 		
 		/* b³¹d, który wyst¹pi³ podczas komunikacji z kart¹ SD, zg³aszany jest u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod
-		 * (ten default jest zarazem obs³ug¹ b³êdów przy próbie otwarcia/utworzenia pliku "door-logger.txt") */
+		 * (ten default jest zarazem obs³ug¹ b³êdów przy próbie otwarcia/utworzenia pliku "DoorLog.txt") */
 		default:
 			/* sekwencja migniêæ diody czerwonej, sygnalizuj¹ca u¿ytkownikowi b³¹d komunikacji z kart¹ SD */
 			BlinkRed(3, 200, 100);
@@ -366,12 +372,22 @@ ISR(INT1_vect)
 	/* zablokowanie funkcji SaveBuffer mo¿liwoœci w³¹czania przerwañ */
 	device_flags.interrupts = 0;
 	
-	/* zapisanie do bufora rekordu o zdarzeniu */
+	/* odczekanie a¿ drgania zestyków ustan¹ */
+	_delay_ms(80);
 	
-	if(PIND & (1 << PD3))	/* PD3 == 1 -> drzwi otwarte */
-		SaveEvent(0);
-	else					/* PD3 == 0 -> drzwi zamkniête */
-		SaveEvent(1);
+	/* zapisujemy zdarzenie tylko jeœli obecny stan drzwi jest przeciwny do poprzedniego */
+	if(device_flags.reed_switch == !(PIND & (1 << PIND3)))
+	{
+		/* zapisanie bie¿¹cego stanu drzwi */
+		device_flags.reed_switch = (PIND & (1 << PIND3)) ? 1 : 0;
+	
+		/* zapisanie do bufora rekordu o zdarzeniu */
+	
+		if(PIND & (1 << PIND3))	/* PD3 == 1 -> drzwi otwarte */
+			SaveEvent(0);
+		else					/* PD3 == 0 -> drzwi zamkniête */
+			SaveEvent(1);
+	}
 	
 	/* umo¿liwienie funkcji SaveBuffer w³¹czania przerwañ */
 	device_flags.interrupts = 1;
@@ -669,8 +685,7 @@ int main(void)
 #pragma region UstawieniaPrzerwan
 
 	/* w³¹czenie przerwañ zewnêtrznych INT1 i INT2 */
-	GICR |= 1 << INT1;
-	GICR |= 1 << INT2;
+	GICR |= 1 << INT1 | 1 << INT2;
 	/* ustawienie generacji przerwania INT1 przy dowolnej zmianie poziomu logicznego */
 	MCUCR |= 0 << ISC11 | 1 << ISC10;
 	/* generacja przerwania INT2 przy zboczu opadaj¹cym jest ustawiona domyœlnie */
@@ -702,6 +717,9 @@ int main(void)
 	
 	/* oœwiecenie diody LED1 (zielonej) */
 	PORTD |= 1 << PD7;
+	
+	/* zapisanie bie¿¹cego stanu drzwi */
+	device_flags.reed_switch = (PIND & (1 << PIND3)) ? 1 : 0;
 	
 	/* zapisanie informacji o w³¹czeniu urz¹dzenia */
 	SaveEvent(2);

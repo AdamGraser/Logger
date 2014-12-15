@@ -33,7 +33,8 @@ typedef struct
 			no_sd_card:1,
 			buffer_full:1,
 			sd_communication_error:1,
-			interrupts:2;
+			interrupts:1,
+			reed_switch:1;
 } flags;
 
 
