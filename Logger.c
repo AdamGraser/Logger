@@ -66,7 +66,7 @@ char buffer[BUFFER_SIZE][20] = {{0,},};
 volatile uint8_t buffer_index = 0;
 
 /// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
-const char* events_names[7] = { "opened", "closed", "turned on", "SD inserted", "no file system", "connection error", "date time changed" };
+const char* events_names[5] = { "opened", "closed", "turned on", "SD inserted", "date time changed" };
 
 #pragma endregion ZmienneStaleMakra
 
@@ -457,7 +457,7 @@ ISR(INT2_vect)
 						if(!device_flags.buffer_full)
 						{
 							/* zapisanie do bufora rekordu o zdarzeniu */
-							SaveEvent(6);
+							SaveEvent(4);
 						
 							/* zapisywanie w buforze stringowej reprezentacji nowych ustawieñ daty i czasu dla RTC, w formacie YY-MM-DD HH:ii:SS */
 							sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
