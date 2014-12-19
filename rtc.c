@@ -2,6 +2,16 @@
 
 
 
+/* ustawienie czêstotliwoœci dla TWI:
+	   SCL frequency = CPU Clock frequency / (16 + 2(TWBR) * 4^TWPS)
+	   dla TWBR = 0 i TWPS = 00 (wartoœci domyœlne) powy¿sze równanie da dzielnik równy 16
+	   przy wewnêtrznym zegarze Atmegi taktuj¹cym z czêst. 1 MHz, otrzymam dla TWI czêst. 62,5 KHz
+	   TWBR - TWI Bit rate Register
+	   TWSR - TWI Status Register:
+	       TWSR1:0 -> TWPS1, TWPS0 - TWI PreScaler bits */
+
+
+
 void TwiStart(void)
 {
 	TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTA);

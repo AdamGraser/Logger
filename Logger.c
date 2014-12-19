@@ -724,22 +724,6 @@ int main(void)
 	/* zapisanie informacji o w³¹czeniu urz¹dzenia */
 	SaveEvent(2);
 	
-#pragma region UstawieniaTWI
-
-	/* w³¹czam TWI (ustawienie bitu TWEN - TWI ENable)
-	   TWCR - TWI Control Register */
-	/*TWCR |= 1 << TWEA;*/
-	
-	/* ustawienie czêstotliwoœci dla TWI:
-	   SCL frequency = CPU Clock frequency / (16 + 2(TWBR) * 4^TWPS)
-	   dla TWBR = 0 i TWPS = 00 (wartoœci domyœlne) powy¿sze równanie da dzielnik równy 16
-	   przy wewnêtrznym zegarze Atmegi taktuj¹cym z czêst. 1 MHz, otrzymam dla TWI czêst. 62,5 KHz
-	   TWBR - TWI Bit rate Register
-	   TWSR - TWI Status Register:
-	       TWSR1:0 -> TWPS1, TWPS0 - TWI PreScaler bits */
-	
-#pragma endregion UstawieniaTWI
-
 #pragma region UstawieniaTimerCounter
 
 	/* w³¹czenie przerwania przy przepe³nieniu liczników Timer/Counter0 (8-bit) i Timer/Counter1 (16-bit) */
