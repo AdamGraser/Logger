@@ -66,7 +66,7 @@ char buffer[BUFFER_SIZE][20] = {{0,},};
 volatile uint8_t buffer_index = 0;
 
 /// Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD.
-const char* events_names[5] = { "opened", "closed", "turned on", "SD inserted", "date time changed" };
+const char* events_names[5] = { "opened", "closed", "turned on", "no file system", "date time changed" };
 
 #pragma endregion ZmienneStaleMakra
 
@@ -102,7 +102,8 @@ void SaveBuffer()
 {
 	/* zmienna iteracyjna */
 	uint8_t i = 0;
-	/* przechowuje iloœæ bajtów zapisanych przez funkcjê f_write */
+	/* przechowuje iloœæ bajtów zapisanych przez funkcjê f_write
+	 * (u¿ywana równie¿ jako zmienna tymczasowa) */
 	UINT bw = 0;
 	/* tymczasowy bufor na dane do zapisania na karcie SD */
 	char temp[38] = {'\0',};
@@ -150,7 +151,7 @@ void SaveBuffer()
 						/* skopiowanie nazwy zdarzenia */
 						strcat(temp, events_names[(int)buffer[i][18]]);
 							
-						/* dodanie znaku nowej linii (CRLF) na koñcu, z uwzglêdnieniem znaku \0 na potrzeby funkcjo f_write */
+						/* dodanie znaku nowej linii (CRLF) na koñcu, z uwzglêdnieniem znaku \0 na potrzeby funkcji f_write */
 						bw = strlen(temp);
 						temp[bw]     = '\r';
 						temp[bw + 1] = '\n';
@@ -191,9 +192,9 @@ void SaveBuffer()
 										buffer_index = bw + 1;
 									}
 									
-									BlinkGreen(3, 200, 100);
-									_delay_ms(300);
-									BlinkRed(6, 200, 100);
+// 									BlinkGreen(3, 200, 100);
+// 									_delay_ms(300);
+// 									BlinkRed(6, 200, 100);
 										
 									break;
 								}
@@ -220,9 +221,9 @@ void SaveBuffer()
 								buffer_index = bw + 1;
 							}
 							
-							BlinkGreen(3, 200, 100);
-							_delay_ms(300);
-							BlinkRed(6, 200, 100);
+// 							BlinkGreen(3, 200, 100);
+// 							_delay_ms(300);
+// 							BlinkRed(6, 200, 100);
 								
 							break;
 						}
@@ -237,14 +238,14 @@ void SaveBuffer()
 						buffer_index = 0;
 				}
 				else
-				{
+/*				{*/
 					/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
 					device_flags.sd_communication_error = 1;
 					
-					BlinkGreen(3, 200, 100);
-					_delay_ms(300);
-					BlinkRed(4, 200, 100);
-				}
+// 					BlinkGreen(3, 200, 100);
+// 					_delay_ms(300);
+// 					BlinkRed(4, 200, 100);
+// 				}
 				
 				/* próba zamkniêcia pliku */
 				if(f_close(&Fil) == FR_OK && !device_flags.sd_communication_error)
@@ -252,12 +253,12 @@ void SaveBuffer()
 					 * jeœli wyst¹pi b³¹d w jednej z 4 funkcji: f_open, f_seek, f_write lub f_close (taki zbiorczy else i default zarazem) */
 					break;
 			}
-			else
-			{
-				BlinkGreen(3, 200, 100);
-				_delay_ms(300);
-				BlinkRed(2, 200, 100);
-			}
+// 			else
+// 			{
+// 				BlinkGreen(3, 200, 100);
+// 				_delay_ms(300);
+// 				BlinkRed(2, 200, 100);
+// 			}
 		
 		/* b³¹d, który wyst¹pi³ podczas komunikacji z kart¹ SD, zg³aszany jest u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod
 		 * (ten default jest zarazem obs³ug¹ b³êdów przy próbie otwarcia/utworzenia pliku "DoorLog.txt") */
@@ -328,7 +329,7 @@ void SaveEvent(char event)
 			if(!device_flags.no_sd_card)
 				/* zapisywanie w buforze rekordu informuj¹cego o braku karty SD */
 				sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
-				now.hours, now.minutes, now.seconds, 4);
+				now.hours, now.minutes, now.seconds, 3);
 		
 			++buffer_index;
 			
@@ -357,7 +358,7 @@ void SaveEvent(char event)
 		
 			/* wyczyszczenie flagi, wyzerowanie i wy³¹czenie licznika */
 			device_flags.no_sd_card = 0;
-			TCNT2 = TCNT0 = 0;
+			OCR0 = TCNT0 = 0;
 			TCCR0 &= 250;
 		}
 	
@@ -667,6 +668,9 @@ ISR(TIMER1_OVF_vect)
 		{
 			device_flags.buffer_full = 1;
 			device_flags.sd_communication_error = 0;
+			
+			/* ustawienie w liczniku wartoœci startowej */
+			TCNT1 = 36239;
 		}
 		else
 		{
