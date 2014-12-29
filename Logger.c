@@ -287,8 +287,7 @@ void SaveBuffer()
 /**
  * Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora rekord o zarejestrowanym przez urz¹dzenie zdarzeniu.<br>
  * Je¿eli bufor jest zape³niony, wymusza zapisanie jego zawartoœci na karcie SD.<br>
- * Sprawdza obecnoœæ mo¿liwego do zamontowania systemu plików. W razie jego braku, w³¹cza licznik powoduj¹cy ponowne, jednostajne powtarzanie tej czynnoœci 
- * ze sta³ym interwa³em czasowym, wynosz¹cym ok. 10 sekund.
+ * W razie potrzeby ustawia flagi braku karty SD i zape³nienia bufora.
  * @param event Kod reprezentuj¹cy rodzaj zdarzenia zarejestrowany przez urz¹dzenie.<br>W dokumentacji urz¹dzenia znajduje siê lista zdarzeñ wraz z kodami.
  */
 void SaveEvent(char event)
@@ -299,49 +298,48 @@ void SaveEvent(char event)
 	/* jeœli bufor jest ju¿ pe³ny, nale¿y wymusiæ zapis jego zawartoœci na kartê SD */
 	if(buffer_index >= BUFFER_SIZE)
 	{
-		/* jeœli jednak wczeœniej zg³oszony zosta³ brak karty, nale¿y natychmiast zg³osiæ zape³nienie bufora */
-		if(device_flags.no_sd_card == 1)
-			device_flags.buffer_full = 1;
-		else
-		{
-			SaveBuffer();
+		buffer_index = BUFFER_SIZE;
+		
+		SaveBuffer();
 			
-			/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
-			 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
-			if(device_flags.sd_communication_error)
-			{
-				device_flags.buffer_full = 1;
-				device_flags.sd_communication_error = 0;
-			}
-			else
-				/* wyczyszczenie flagi pe³nego bufora przy braku karty SD */
-				device_flags.buffer_full = 0;
+		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+		 * urz¹dzenie zasygnalizuje to jako zape³nienie bufora przy braku karty SD */
+		if(device_flags.sd_communication_error)
+		{
+			device_flags.no_sd_card = device_flags.buffer_full = 1;
+			device_flags.sd_communication_error = 0;
 		}
+		else
+			/* wyczyszczenie flagi braku karty SD i flagi pe³nego bufora */
+			device_flags.no_sd_card = device_flags.buffer_full = 0;
 	}
 	
 	/* jeœli bufor jest pe³ny i brak karty SD, nastêpuje utrata informacji */
-	if(!device_flags.buffer_full)
+	if(!device_flags.buffer_full || !device_flags.no_sd_card)
 	{
 		/* sprawdzenie obecnoœci mo¿liwego do zamontowania systemu plików */
 		if(f_mount(&FatFs, "", 1) != FR_OK)
 		{
 			/* jeœli ju¿ wczeœniej stwierdzono brak karty SD, nie ma sensu dublowaæ informacji w buforze */
 			if(!device_flags.no_sd_card)
+			{
 				/* zapisywanie w buforze rekordu informuj¹cego o braku karty SD */
 				sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
 				now.hours, now.minutes, now.seconds, 3);
 		
-			++buffer_index;
+				++buffer_index;
+			}
 			
 			/* ustawienie flagi braku karty SD */
 			device_flags.no_sd_card = 1;
 		
 			/* zape³nienie bufora przy braku karty SD */
 			if(buffer_index >= BUFFER_SIZE)
+			{
+				buffer_index = BUFFER_SIZE;
+				
 				device_flags.buffer_full = 1;
-		
-			/* w³¹czenie Timera/Countera0 z preskalerem 1024 */
-			TCCR0 = 1 << CS02 | 1 << CS00;
+			}
 		}
 		else
 		{
@@ -351,19 +349,17 @@ void SaveEvent(char event)
 				/* sekwencja migniêæ diod, sygnalizuj¹ca u¿ytkownikowi b³¹d podczas próby odmontowania systemu plików */
 				BlinkBoth(3, 200, 100);
 				
-				/* _delay wy³¹cza przerwania - ponowne w³¹czenie przerwañ, jeœli jest to mo¿liwe */
+				/* _delay_ms wy³¹cza przerwania - ponowne w³¹czenie przerwañ, jeœli jest to mo¿liwe */
 				if(device_flags.interrupts)
 					sei();
 			}
 		
-			/* wyczyszczenie flagi, wyzerowanie i wy³¹czenie licznika */
+			/* wyczyszczenie flagi */
 			device_flags.no_sd_card = 0;
-			OCR0 = TCNT0 = 0;
-			TCCR0 &= 250;
 		}
 	
 		/* jeœli bufor jest pe³ny i brak karty SD, nastêpuje utrata informacji */
-		if(!device_flags.buffer_full)
+		if(!device_flags.buffer_full || !device_flags.no_sd_card)
 		{
 			/* zapisywanie w buforze daty i czasu z RTC oraz symbolu zdarzenia jako napis o formacie "YY-MM-DD HH:ii:SS c" */
 			sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d %c", now.years, now.months, now.days,
@@ -511,7 +507,7 @@ ISR(INT2_vect)
 				case 3:
 				case 4:
 				case 5:
-					BlinkGreen(set_rtc + 1, 200, 100);
+					BlinkGreen(set_rtc, 200, 100);
 			}
 		}
 	}
@@ -589,52 +585,6 @@ ISR(INT2_vect)
 			
 			/* sygnalizacja inkrementacji bie¿¹cej sk³adowej */
 			BlinkRed(1, 200, 50);
-		}
-	}
-	
-	/* umo¿liwienie funkcji SaveBuffer w³¹czania przerwañ */
-	device_flags.interrupts = 1;
-}
-
-
-
-/**
- * Obs³uga przerwañ z 8-bitowego licznika Timer/Counter0.<br>
- * Przepe³nienie licznika powoduje inkrementacjê rejestru OCR0. Osi¹gniêcie przez rejestr OCR0 wartoœci 39 oznacza up³yw ok. 10 sekund i 
- * jest to jednoznaczne ze sprawdzeniem obecnoœci mo¿liwego do zamontowania systemu plików i wyzerowania liczników. Jeœli takowy system jest obecny, licznik zostaje 
- * wy³¹czony. W przeciwnym razie odliczanie 10 sekund jest powtarzane.
- * @param TIMER0_OVF_vect Wektor przerwania przy przepe³nieniu 8-bitowego licznika Timer/Counter0.
- */
-ISR(TIMER0_OVF_vect)
-{
-	/* zablokowanie funkcji SaveBuffer mo¿liwoœci w³¹czania przerwañ */
-	device_flags.interrupts = 0;
-	
-	/* Karta mog³a zostaæ wykryta wczeœniej w SaveEvent */
-	if(device_flags.no_sd_card == 1)
-	{
-		++OCR0;
-	
-		/* jeœli up³ynê³o co najmniej 10 sekund */
-		if(OCR0 == 39)
-		{
-			OCR0 = TCNT0 = 0;
-		
-			/* sprawdzenie obecnoœci mo¿liwego do zamontowania systemu plików */
-			if(f_mount(&FatFs, "", 1) == FR_OK)
-			{
-				/* wyczyszczenie flagi braku karty SD */
-				device_flags.no_sd_card = 0;
-			
-				/* próba odmontowania systemu plików */
-				f_mount(NULL, "", 1);
-			
-				/* zapisywanie w buforze rekordu informuj¹cego o w³o¿eniu do urz¹dzenia karty SD */
-				SaveEvent(3);
-			
-				/* wy³¹czenie Timera/Countera0 */
-				TCCR0 &= 250;
-			}
 		}
 	}
 	
@@ -750,8 +700,8 @@ int main(void)
 	
 #pragma region UstawieniaTimerCounter
 
-	/* w³¹czenie przerwania przy przepe³nieniu liczników Timer/Counter0 (8-bit) i Timer/Counter1 (16-bit) */
-	TIMSK = 1 << TOIE0 | 1 << TOIE1;
+	/* w³¹czenie przerwania przy przepe³nieniu licznika Timer/Counter1 (16-bit) */
+	TIMSK = 1 << TOIE1;
 
 #pragma endregion UstawieniaTimerCounter
 	
