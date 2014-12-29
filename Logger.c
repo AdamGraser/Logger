@@ -161,7 +161,7 @@ void SaveBuffer()
 						if(f_write(&Fil, temp, strlen(temp), &bw) == FR_OK)
 						{
 							/* jeœli zapisywany rekord dotyczy zmiany ustawieñ daty i czasu w RTC */
-							if(buffer[i][18] == 6)
+							if(buffer[i][18] == 4)
 							{
 								++i;
 						
@@ -190,6 +190,10 @@ void SaveBuffer()
 										/* aktualizowanie wskaŸnika bufora */
 										buffer_index = bw + 1;
 									}
+									
+									BlinkGreen(3, 200, 100);
+									_delay_ms(300);
+									BlinkRed(6, 200, 100);
 										
 									break;
 								}
@@ -215,6 +219,10 @@ void SaveBuffer()
 								/* aktualizowanie wskaŸnika bufora */
 								buffer_index = bw + 1;
 							}
+							
+							BlinkGreen(3, 200, 100);
+							_delay_ms(300);
+							BlinkRed(6, 200, 100);
 								
 							break;
 						}
@@ -229,14 +237,26 @@ void SaveBuffer()
 						buffer_index = 0;
 				}
 				else
+				{
 					/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
 					device_flags.sd_communication_error = 1;
+					
+					BlinkGreen(3, 200, 100);
+					_delay_ms(300);
+					BlinkRed(4, 200, 100);
+				}
 				
 				/* próba zamkniêcia pliku */
 				if(f_close(&Fil) == FR_OK && !device_flags.sd_communication_error)
 					/* aby nie pisaæ 5 razy tego samego migania diodami, równie¿ z tego case'a mo¿e nast¹piæ przejœcie do default'a,
 					 * jeœli wyst¹pi b³¹d w jednej z 4 funkcji: f_open, f_seek, f_write lub f_close (taki zbiorczy else i default zarazem) */
 					break;
+			}
+			else
+			{
+				BlinkGreen(3, 200, 100);
+				_delay_ms(300);
+				BlinkRed(2, 200, 100);
 			}
 		
 		/* b³¹d, który wyst¹pi³ podczas komunikacji z kart¹ SD, zg³aszany jest u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod
