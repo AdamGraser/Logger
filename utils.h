@@ -188,11 +188,13 @@ extern volatile flags device_flags;
  */
 #define delay(d, t) \
 { \
+	OCR0 = d; \
+\
 	do \
 	{ \
 		_delay_ms(t); \
 		sei(); \
-	} while (--(d)); \
+	} while (--OCR0); \
 }
 
 
