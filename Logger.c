@@ -676,10 +676,6 @@ ISR(TIMER1_OVF_vect)
 /// Funkcja g³ówna programu.
 int main(void)
 {
-	/* zmienna iteracyjna u¿ywana przy seriach 50-milisekundowych opóŸnieñ w pêtli g³ównej programu
-	 * auto - próba wymuszenia alokacji tej zmiennej w rejestrze procesora */
-	auto uint8_t delay = 0;
-	
 	/************************************************************************/
 	/*                     Inicjalizacja urz¹dzenia                         */
 	/************************************************************************/
@@ -748,7 +744,7 @@ int main(void)
 	/************************************************************************/
     for(;;)
     {
-        /* flaga VL ustawiona => dioda zielona miga
+        /* flaga VL ustawiona => dioda zielona miga (ok. 0,5 Hz)
          * w przeciwnym razie => dioda zielona œwieci siê ci¹gle */
 		if(device_flags.vl)
 			PORTD ^= 128;
@@ -762,39 +758,42 @@ int main(void)
 		else
 			PORTD &= 191;
 		
-		/* Jeœli brak karty SD, zape³nienie bufora powoduje 2 razy czêstsze miganie diody.
-		 * Poniewa¿ funkcje _delay wy³¹czaj¹ przerwania, trzeba je w³¹czaæ po zakoñczeniu oczekiwania.
-		 * Poniewa¿ odliczanie 10 sekund do ponownego sprawdzenia obecnoœci karty SD wi¹¿e siê z 39 przerwaniami w ci¹gu tych ok. 10 sekund,
-		 * jedno przerwanie pojawia siê co ok. 0,25 s. Dlatego opóŸnienia dzielone s¹ na 50-milisekundowe odcinki, by co 50 ms mog³o zostaæ obs³u¿one przerwanie. */
+		/* no_sd_card										ok. 0,5 Hz
+		 * buffer_full (b³¹d komunikacji z kart¹)			ok. 1 Hz
+		 * no_sd_card && buffer_full						ok. 2 Hz
+		 * Poniewa¿ funkcja _delay_ms wy³¹cza przerwania, trzeba je w³¹czaæ po zakoñczeniu oczekiwania.
+		 * Aby zminimalizowaæ czas oczekiwania na obs³ugê przerwania (i w efekcie jak najczêœciej umo¿liwiaæ rejestracjê przerwania o tym samym priorytecie),
+		 * odmierzanie czasu do zmiany stanu diod zosta³o podzielone na sekwencje 'delay' oczekiwañ po 50 ms. */
 		if(device_flags.buffer_full)
 		{
-			delay = 10;
+			/* odczekanie 250 ms */
+			delay(5, 50);
 			
-			do
-			{
-				_delay_ms(50);
-				sei();
-			} while (--delay);
+			/* jeœli obie flagi s¹ ustawione, dioda czerwona ma zmieniaæ stan co 250 ms,
+			 * jeœli tylko buffer_full jest ustawiona, dioda czerwona ma zmieniaæ stan co 500 ms */
+			if(device_flags.no_sd_card)
+				PORTD ^= 64;
 			
+			/* odczekanie 250 ms */
+			delay(5, 50);
+			
+			/* zmiana stanu diody czerwonej */
 			PORTD ^= 64;
 			
-			delay = 10;
+			/* odczekanie 250 ms */
+			delay(5, 50);
 			
-			do
-			{
-				_delay_ms(50);
-				sei();
-			} while (--delay);
+			/* zmiana po 250 ms jeœli obie flagi ustawione */
+			if(device_flags.no_sd_card)
+				PORTD ^= 64;
+			
+			/* odczekanie 250 ms */
+			delay(5, 50);
 		}
 		else
 		{
-			delay = 20;
-			
-			do 
-			{
-				_delay_ms(50);
-				sei();
-			} while (--delay);
+			/* odczekanie 1000 ms */
+			delay(20, 50);
 		}
     }
 }

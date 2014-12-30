@@ -180,4 +180,21 @@ extern volatile flags device_flags;
 
 
 
+/**
+ * Wywo³uje funkcjê _delay_ms z biblioteki utils/delay.h 'd' razy, podaj¹c jako argument wartoœæ 't'.<br>
+ * Po ka¿dym wywo³aniu opóŸnienia funkcja ta w³¹cza ponownie przerwania (_delay_ms wy³¹cza przerwania).
+ * @param d Liczba powtórzeñ opóŸnienia
+ * @param t Czas opóŸnienia w milisekundach
+ */
+#define delay(d, t) \
+{ \
+	do \
+	{ \
+		_delay_ms(t); \
+		sei(); \
+	} while (--(d)); \
+}
+
+
+
 #endif /* UTILS_H */
