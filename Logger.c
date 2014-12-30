@@ -97,13 +97,13 @@ DWORD get_fattime (void)
 
 
 
-/// Zapisuje dane z bufora na kartê SD, czyœci go oraz przesuwa wskaŸnik w buforze na pocz¹tek.
+/* Zapisuje dane z bufora na kartê SD, czyœci go oraz przesuwa wskaŸnik w buforze na pocz¹tek.<br>
+ * W razie potrzeby ustawia flagê braku karty SD lub flagê b³êdu komunikacji z kart¹ SD. */
 void SaveBuffer()
 {
 	/* zmienna iteracyjna */
 	uint8_t i = 0;
-	/* przechowuje iloœæ bajtów zapisanych przez funkcjê f_write
-	 * (u¿ywana równie¿ jako zmienna tymczasowa) */
+	/* przechowuje iloœæ bajtów zapisanych przez funkcjê f_write (u¿ywana równie¿ jako zmienna tymczasowa) */
 	UINT bw = 0;
 	/* tymczasowy bufor na dane do zapisania na karcie SD */
 	char temp[38] = {'\0',};
@@ -121,8 +121,8 @@ void SaveBuffer()
 			/* jeœli wci¹¿ nie da siê zamontowaæ systemu plików, nale¿y powiadomiæ u¿ytkownika i zakoñczyæ dzia³anie funkcji (w³¹czyæ z powrotem przerwania) */
 			if(f_mount(&FatFs, "", 1) != FR_OK)
 			{
-				/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
-				device_flags.sd_communication_error = 1;
+				/* ustawienie flagi braku karty SD */
+				device_flags.no_sd_card = 1;
 				
 				/* sekwencja migniêæ diody czerwonej, sygnalizuj¹ca u¿ytkownikowi niegotowoœæ karty SD */
 				BlinkRed(5, 100, 100);
@@ -236,38 +236,41 @@ void SaveBuffer()
 					if(!device_flags.sd_communication_error)
 						/* ustawienie wskaŸnika w buforze na pocz¹tek */
 						buffer_index = 0;
+					
+					/* próba zamkniêcia pliku */
+					if(f_close(&Fil) != FR_OK)
+						device_flags.sd_communication_error = 1;
 				}
 				else
-/*				{*/
+				{
 					/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
 					device_flags.sd_communication_error = 1;
 					
 // 					BlinkGreen(3, 200, 100);
 // 					_delay_ms(300);
 // 					BlinkRed(4, 200, 100);
-// 				}
-				
-				/* próba zamkniêcia pliku */
-				if(f_close(&Fil) == FR_OK && !device_flags.sd_communication_error)
-					/* aby nie pisaæ 5 razy tego samego migania diodami, równie¿ z tego case'a mo¿e nast¹piæ przejœcie do default'a,
-					 * jeœli wyst¹pi b³¹d w jednej z 4 funkcji: f_open, f_seek, f_write lub f_close (taki zbiorczy else i default zarazem) */
-					break;
+ 				}
 			}
-// 			else
-// 			{
+   			else
+   			{
+   				/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
+   				device_flags.sd_communication_error = 1;
+				
 // 				BlinkGreen(3, 200, 100);
 // 				_delay_ms(300);
 // 				BlinkRed(2, 200, 100);
-// 			}
-		
-		/* b³¹d, który wyst¹pi³ podczas komunikacji z kart¹ SD, zg³aszany jest u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ diod
-		 * (ten default jest zarazem obs³ug¹ b³êdów przy próbie otwarcia/utworzenia pliku "DoorLog.txt") */
-		default:
-			/* sekwencja migniêæ diody czerwonej, sygnalizuj¹ca u¿ytkownikowi b³¹d komunikacji z kart¹ SD */
-			BlinkRed(3, 200, 100);
+ 			}
+
+			/* b³¹d, który wyst¹pi³ podczas komunikacji z kart¹ SD, zg³aszany jest u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ czerwonej diody */
+			if(device_flags.sd_communication_error)
+				BlinkRed(3, 200, 100);
 			
-			/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
-			device_flags.sd_communication_error = 1;
+			break;
+		
+		/* b³¹d przy próbie zamontowania systemu plików sygnalizowany jest jako brak karty SD */
+		default:
+			/* ustawienie flagi braku karty SD */
+			device_flags.no_sd_card = 1;
 	}
 	
 	/* próba odmontowania systemu plików */
@@ -300,18 +303,25 @@ void SaveEvent(char event)
 	{
 		buffer_index = BUFFER_SIZE;
 		
-		SaveBuffer();
-			
+		/* czyszczenie flagi braku karty SD, aby by³o wiadomo, ¿e zosta³a ustawiona w funkcji SaveBuffer */
+		device_flags.no_sd_card = 0;
 		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
 		 * urz¹dzenie zasygnalizuje to jako zape³nienie bufora przy braku karty SD */
-		if(device_flags.sd_communication_error)
+		device_flags.buffer_full = 1;
+		
+		SaveBuffer();
+		
+		/* jeœli wyst¹pi³ b³¹d zapisu, a bufor jest pe³ny, nale¿y uniemo¿liwiæ zapisywanie kolejnych informacji do bufora, aby nie wyjœæ poza zakres tej tablicy */
+		if(buffer_index >= BUFFER_SIZE)
+			device_flags.no_sd_card = 1;
+		else
 		{
-			device_flags.no_sd_card = device_flags.buffer_full = 1;
+			/* jeœli nie wyst¹pi³ ¿aden b³¹d, nastêpuje czyszczenie flagi pe³nego bufora */
+			if(!device_flags.sd_communication_error)
+				device_flags.buffer_full = 0;
+			
 			device_flags.sd_communication_error = 0;
 		}
-		else
-			/* wyczyszczenie flagi braku karty SD i flagi pe³nego bufora */
-			device_flags.no_sd_card = device_flags.buffer_full = 0;
 	}
 	
 	/* jeœli bufor jest pe³ny i brak karty SD, nastêpuje utrata informacji */
@@ -340,6 +350,8 @@ void SaveEvent(char event)
 				
 				device_flags.buffer_full = 1;
 			}
+			else
+				device_flags.buffer_full = 0;
 		}
 		else
 		{
@@ -454,24 +466,36 @@ ISR(INT2_vect)
 					/* w przeciwnym razie wysy³amy nowe ustawienia do RTC */
 					else
 					{
-						/* jeœli w buforze brak miejsca na 2 rekordy, nale¿y zapisaæ jego zawartoœæ na kartê SD */
-						if(buffer_index > BUFFER_SIZE - 2)
+						/* jeœli w buforze brak miejsca na 2 rekordy + 1 na ew. informacjê o braku karty SD (mo¿e zostaæ zapisana wewn¹trz funkcji SaveEvent),
+						 * nale¿y zapisaæ zawartoœæ bufora na kartê SD */
+						if(buffer_index > BUFFER_SIZE - 3)
 						{
+							/* czyszczenie flagi braku karty SD, aby by³o wiadomo, ¿e zosta³a ustawiona w funkcji SaveBuffer */
+							device_flags.no_sd_card = 0;
+							/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+							 * urz¹dzenie zasygnalizuje to jako zape³nienie bufora przy braku karty SD */
+							device_flags.buffer_full = 1;
+							
 							SaveBuffer();
 							
-							/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
-							 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
-							if(device_flags.sd_communication_error)
+							/* jeœli wyst¹pi³ b³¹d zapisu, a bufor jest pe³ny, nale¿y uniemo¿liwiæ zapisywanie kolejnych informacji do bufora, aby nie wyjœæ poza zakres tej tablicy */
+							if(buffer_index >= BUFFER_SIZE)
 							{
-								device_flags.buffer_full = 1;
-								device_flags.sd_communication_error = 0;
+								buffer_index = BUFFER_SIZE;
+								
+								device_flags.no_sd_card = 1;
 							}
 							else
-								/* wyczyszczenie flagi pe³nego bufora przy braku karty SD */
-								device_flags.buffer_full = 0;
+							{
+								/* jeœli nie by³o b³êdu zapisu, nastêpuje wyczyszczenie flagi pe³nego bufora przy braku karty SD */
+								if(!device_flags.sd_communication_error)
+									device_flags.buffer_full = 0;
+								
+								device_flags.sd_communication_error = 0;
+							}
 						}
 					
-						if(!device_flags.buffer_full)
+						if(buffer_index <= BUFFER_SIZE - 3)
 						{
 							/* zapisanie do bufora rekordu o zdarzeniu */
 							SaveEvent(4);
@@ -609,27 +633,38 @@ ISR(TIMER1_OVF_vect)
 	 * Dlatego najpierw sprawdzamy, czy licznik zawiera wartoœæ mniejsz¹ ni¿ startowa, co oznacza jego przepe³nienie. */
 	if(TCNT1 < 36239)
 	{
+		/* czyszczenie flagi braku karty SD, aby by³o wiadomo, ¿e zosta³a ustawiona w funkcji SaveBuffer */
+		device_flags.no_sd_card = 0;
+		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+		 * urz¹dzenie zasygnalizuje to jako zape³nienie bufora przy braku karty SD */
+		device_flags.buffer_full = 1;
+		
 		/* zapisanie danych z bufora na kartê SD */
 		SaveBuffer();
 		
-		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
-		 * urz¹dzenie zasygnalizuje to w ten sam sposób, co zape³nienie bufora przy braku karty SD */
-		if(device_flags.sd_communication_error)
+		/* jeœli wyst¹pi³ b³¹d zapisu, a bufor jest pe³ny, nale¿y uniemo¿liwiæ zapisywanie kolejnych informacji do bufora, aby nie wyjœæ poza zakres tej tablicy */
+		if(buffer_index >= BUFFER_SIZE)
 		{
-			device_flags.buffer_full = 1;
-			device_flags.sd_communication_error = 0;
+			buffer_index = BUFFER_SIZE;
 			
-			/* ustawienie w liczniku wartoœci startowej */
-			TCNT1 = 36239;
+			device_flags.no_sd_card = 1;
 		}
 		else
 		{
-			/* wy³¹czenie Timera/Countera 1 */
-			TCCR1B &= 250;
 			
-			/* wyczyszczenie flagi pe³nego bufora przy braku karty SD */
-			device_flags.buffer_full = 0;
+			/* jeœli nie by³o b³êdu zapisu, nastêpuje wyczyszczenie flagi pe³nego bufora przy braku karty SD */
+			if(!device_flags.sd_communication_error)
+				device_flags.buffer_full = 0;
+			
+			device_flags.sd_communication_error = 0;
+			
+			/* wy³¹czenie Timera/Countera 1 nastêpuje tylko wtedy, gdy ca³y bufor zostanie zapisany na kartê SD */
+			if(buffer_index == 0)
+				TCCR1B &= 250;
 		}
+		
+		/* ustawienie w liczniku wartoœci startowej */
+		TCNT1 = 36239;
 	}
 	
 	/* umo¿liwienie funkcji SaveBuffer w³¹czania przerwañ */
