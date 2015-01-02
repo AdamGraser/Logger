@@ -1,8 +1,8 @@
 /*
- * utils.h
+ *  utils.h
  *
- * Utworzono: 2014-12-08 15:56:06
- * Autor: Adam Gräser
+ *  Utworzono: 2014-12-08 15:56:06
+ *  Autor: Adam Gräser
  */ 
 
 #ifndef UTILS_H
@@ -19,11 +19,12 @@
  * Pole bitowe przechowuj¹ce flagi m.in. b³êdów.
  * @field led1 Bie¿¹cy stan diody zielonej
  * @field led2 Bie¿¹cy stan diody czerwonej
- * @field vl Wartoœæ bitu VL z rejestru VL_seconds w RTC (wartoœæ 1 informuje o utraceniu dok³adnoœci pomiaru czasu)
+ * @field vl Wartoœæ bitu VL z rejestru VL_seconds w RTC (wartoœæ 1 informuje o mo¿liwoœci utracenia dok³adnoœci pomiaru czasu)
  * @field no_sd_card Flaga braku mo¿liwego do zamontowania systemu plików
- * @field buffer_full Flaga zape³nienia bufora przy jednoczesnym braku karty SD lub flaga b³êdu zapisu danych na kartê SD
- * @field sd_communication_error Flaga b³êdu u¿ywana wewn¹trz funkcji {@link SaveBuffer}
+ * @field buffer_full Flaga zape³nienia bufora przy jednoczesnym braku karty SD (jeœli no_sd_card == 1) lub flaga b³êdu zapisu danych na kartê SD
+ * @field sd_communication_error Flaga b³êdu u¿ywana wewn¹trz funkcji @see SaveBuffer
  * @field interrupts Flaga determinuj¹ca mo¿liwoœæ w³¹czenia przerwañ
+ * @field reed_switch Bie¿¹cy stan kontaktronu
  */
 typedef struct
 {
@@ -40,12 +41,15 @@ typedef struct
 
 
 /* sta³e u¿ywane jako indeksy tablicy set_rtc_values, dla zwiêkszenia przejrzystoœci kodu */
-#define VL_seconds 0
-#define Minutes 1
-#define Hours 2
-#define Days 3
-#define Century_months 4
-#define Years 5
+///@name Indeksy_set_rtc_values
+//@{
+	#define VL_seconds 0
+	#define Minutes 1
+	#define Hours 2
+	#define Days 3
+	#define Century_months 4
+	#define Years 5
+//@}
 
 /**
  * Wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione w RTC po zatwierdzeniu
@@ -53,7 +57,7 @@ typedef struct
  */
 extern uint8_t set_rtc_values[6];
 
-/// Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ).
+/// Flagi b³êdów i bie¿¹cego stanu wybranych elementów urz¹dzenia.
 extern volatile flags device_flags;
 
 
@@ -77,7 +81,7 @@ extern volatile flags device_flags;
  */
 #define BlinkGreen(repeats, green_on, green_off) \
 { \
-	/* zapisanie stanu, zgaszenie diody i odczekanie 'green_off' milisekund */ \
+	/* zapisanie stanu diody, zgaszenie jej i odczekanie 'green_off' milisekund */ \
 	if((PIND & (1 << PIND7))) \
 	{ \
 		device_flags.led1 = 1; \
@@ -99,7 +103,7 @@ extern volatile flags device_flags;
 	/* przywrócenie stanu diody */ \
 	PORTD |= device_flags.led1 << PD7; \
 \
-	/* wyczyszczenie flag z zapisanym stanem diod */ \
+	/* wyczyszczenie flagi z zapisanym stanem diody */ \
 	device_flags.led1 = 0; \
 }
 
@@ -111,7 +115,7 @@ extern volatile flags device_flags;
  */
 #define BlinkRed(repeats, red_on, red_off) \
 { \
-	/* zapisanie stanu, zgaszenie diody i odczekanie 'red_off' milisekund */ \
+	/* zapisanie stanu diody, zgaszenie jej i odczekanie 'red_off' milisekund */ \
 	if((PIND & (1 << PIND6))) \
 	{ \
 		device_flags.led2 = 1; \
@@ -133,7 +137,7 @@ extern volatile flags device_flags;
 	/* przywrócenie stanu diody */ \
 	PORTD |= device_flags.led2 << PD6; \
 \
-	/* wyczyszczenie flag z zapisanym stanem diod */ \
+	/* wyczyszczenie flagi z zapisanym stanem diody */ \
 	device_flags.led2 = 0; \
 }
 
@@ -147,7 +151,7 @@ extern volatile flags device_flags;
  */
 #define BlinkBoth(repeats, on, off) \
 { \
-	/* zapisanie stanu, zgaszenie diod i odczekanie 'off' milisekund */ \
+	/* zapisanie stanu diod, zgaszenie ich i odczekanie 'off' milisekund */ \
 	if((PIND & (1 << PIND7))) \
 	{ \
 		device_flags.led1 = 1; \

@@ -5,11 +5,11 @@
  *  Autor: Adam Gräser
  *
  *  Przycisk PB0 - rozpoczêcie operacji zmiany ustawieñ daty i czasu w RTC/przejœcie do kolejnego elementu daty lub czasu/zakoñczenie operacji zmiany...
- *  Przycisk PB1 - pojedyncze naciœniêcie zwiêkszenie o 1 bie¿¹cego elementu daty/czasu (wciœniêcie i przytrzymanie to pojedyncze naciœniêcie)
- *                 wyjœcie poza zakres danej sk³adowej daty/czasu powoduje jej wyzerowanie
+ *  Przycisk PB1 - pojedyncze naciœniêcie = zwiêkszenie o 1 bie¿¹cego elementu daty lub czasu
+ *                 (wyjœcie poza zakres danej sk³adowej daty lub czasu powoduje jej wyzerowanie)
  *  
- *  Dioda LED1 PD7 zielona - sygnalizacja dzia³ania urz¹dzenia ci¹g³ym œwieceniem, sygnalizacja innych zdarzeñ miganiem
- *  Dioda LED2 PD6 czerwona - sygnalizacja trwania operacji zapisu danych na kartê SD ci¹g³ym œwieceniem w trakcie trwania operacji,
+ *  Dioda LED1 PD7 zielona  - sygnalizacja dzia³ania urz¹dzenia ci¹g³ym œwieceniem, sygnalizacja innych zdarzeñ miganiem
+ *  Dioda LED2 PD6 czerwona - sygnalizacja trwania operacji zapisu danych na kartê SD ci¹g³ym œwieceniem w trakcie trwania tej operacji,
  *                            sygnalizacja innych zdarzeñ (g³ównie b³êdów) miganiem
  *  W dokumentacji znajduje siê dok³adny opis migniêæ diod i ich znaczenia.
  */ 
@@ -31,15 +31,15 @@
 /// Rozmiar bufora (liczba 20-bajtowych elementów do przechowywania rekordów o zdarzeniach).
 #define BUFFER_SIZE 20
 
-/// Przestrzeñ robocza FatFS potrzebna dla ka¿dego volumenu
+/// Przestrzeñ robocza FatFS, potrzebna dla ka¿dego wolumenu
 FATFS FatFs;
 
-/// Obiekt (uchwyt do) pliku potrzebny dla ka¿dego otwartego pliku
+/// Obiekt (uchwyt do) pliku, potrzebny dla ka¿dego otwartego pliku
 FIL Fil;
 
 /**
- * Oznaczenie trybu pracy urz¹dzenia.<br>
- * Wartoœæ -1 oznacza tryb normalny, wartoœci od 0 do 5 to ustawianie kolejnych elementów daty i czasu w RTC, wartoœæ 6 to oczekiwanie na potwierdzenie
+ * Etap operacji zmiany ustawieñ daty i czasu w RTC.<br>
+ * Wartoœæ -1 oznacza tryb normalny, wartoœci od 0 do 5 to okreœlanie wartoœci kolejnych elementów daty i czasu, wartoœæ 6 to oczekiwanie na potwierdzenie
  * b¹dŸ anulowanie zmiany ustawieñ daty i czasu w RTC.
  */
 int8_t set_rtc = -1;
@@ -56,10 +56,10 @@ uint8_t set_rtc_values[6];
 /// Przechowuje datê i czas pobrane z RTC.
 time now;
 
-/* Flagi b³êdów i bie¿¹cego stanu diod (u¿ywane przy sekwencjach migniêæ). */
+/* Flagi b³êdów i bie¿¹cego stanu wybranych elementów urz¹dzenia. */
 volatile flags device_flags = {0, 0, 0, 0, 0, 0, 1, 0};
 
-/// Bufor przechowuj¹cy do 10 rekordów informacyjnych o zarejestrowanych zdarzeniach.
+/// Bufor przechowuj¹cy do 20 rekordów informacyjnych o zarejestrowanych zdarzeniach.
 char buffer[BUFFER_SIZE][20] = {{0,},};
 
 /// Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu.
@@ -73,8 +73,8 @@ const char* events_names[6] = { "opened", "closed", "turned on", "no file system
 
 
 /**
- * Pobiera bie¿¹c¹ datê i czas, pakuje je do pojedynczej wartoœæ typu DWORD i zwraca.<br>
- * Funkcja ta wywo³ywana jest przez FatFS.
+ * Pobiera bie¿¹c¹ datê i czas z RTC, zapisuje je wszystkie do pojedynczej wartoœæ typu DWORD i zwraca.<br>
+ * Funkcja ta u¿ywana jest przez FatFS.
  * @return Bie¿¹c¹ datê i czas, upakowane w wartoœci typu DWORD.
  */
 DWORD get_fattime (void)
@@ -97,8 +97,10 @@ DWORD get_fattime (void)
 
 
 
-/* Zapisuje dane z bufora na kartê SD, czyœci go oraz przesuwa wskaŸnik w buforze na pocz¹tek.<br>
- * W razie potrzeby ustawia flagê braku karty SD lub flagê b³êdu komunikacji z kart¹ SD. */
+/**
+ * Zapisuje dane z bufora na kartê SD oraz przesuwa wskaŸnik bufora (buffer_index) na pocz¹tek.<br>
+ * W razie potrzeby ustawia flagê braku karty SD lub flagê b³êdu komunikacji z kart¹ SD.
+ */
 void SaveBuffer()
 {
 	/* zmienna iteracyjna */
@@ -108,7 +110,7 @@ void SaveBuffer()
 	/* tymczasowy bufor na dane do zapisania na karcie SD */
 	char temp[38] = {'\0',};
 	
-	/* ta operacja nie mo¿e zostaæ przerwana */
+	/* aby zapis danych nie zosta³ przerwany */
 	cli();
 	
 	/* próba zamontowania systemu plików karty SD */
@@ -121,7 +123,7 @@ void SaveBuffer()
 			/* jeœli wci¹¿ nie da siê zamontowaæ systemu plików, nale¿y powiadomiæ u¿ytkownika i zakoñczyæ dzia³anie funkcji */
 			if(f_mount(&FatFs, "", 1) != FR_OK)
 			{
-				/* ustawienie flagi braku karty SD i flagi b³êdu komunikacji z kart¹ (dla odró¿nienia, ¿e brak karty zosta³ wykryty dopiero teraz) */
+				/* ustawienie flagi braku karty SD i flagi b³êdu komunikacji z kart¹ (dla odró¿nienia, ¿e brak karty zosta³ wykryty w tej funkcji) */
 				if(!device_flags.no_sd_card)
 					device_flags.sd_communication_error = device_flags.no_sd_card = 1;
 				
@@ -162,7 +164,7 @@ void SaveBuffer()
 						/* próba zapisu rekordu informacyjnego do pliku */
 						if(f_write(&Fil, temp, strlen(temp), &bw) == FR_OK)
 						{
-							/* jeœli zapisywany rekord dotyczy zmiany ustawieñ daty i czasu w RTC */
+							/* jeœli zapisywany rekord dotyczy zmiany ustawieñ daty i czasu w RTC, nastêpny rekord w buforze zawiera now¹ datê i czas */
 							if(buffer[i][18] == 4)
 							{
 								++i;
@@ -171,7 +173,7 @@ void SaveBuffer()
 								buffer[i][17] = '\r';
 								buffer[i][18] = '\n';
 									
-								/* próba zapisu tych danych do pliku */
+								/* jeœli próba zapisu tych danych do pliku siê nie powiedzie */
 								if(f_write(&Fil, buffer[i], strlen(buffer[i]), &bw) != FR_OK)
 								{
 									/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
@@ -192,10 +194,6 @@ void SaveBuffer()
 										/* aktualizowanie wskaŸnika bufora */
 										buffer_index = bw + 1;
 									}
-									
-// 									BlinkGreen(3, 200, 100);
-// 									_delay_ms(300);
-// 									BlinkRed(6, 200, 100);
 										
 									break;
 								}
@@ -221,10 +219,6 @@ void SaveBuffer()
 								/* aktualizowanie wskaŸnika bufora */
 								buffer_index = bw + 1;
 							}
-							
-// 							BlinkGreen(3, 200, 100);
-// 							_delay_ms(300);
-// 							BlinkRed(6, 200, 100);
 								
 							break;
 						}
@@ -235,7 +229,7 @@ void SaveBuffer()
 					
 					/* jeœli nie by³o b³êdu, ca³y bufor na pewno zosta³ zapisany na karcie SD */
 					if(!device_flags.sd_communication_error)
-						/* ustawienie wskaŸnika w buforze na pocz¹tek */
+						/* ustawienie wskaŸnika bufora na pocz¹tek */
 						buffer_index = 0;
 					
 					/* próba zamkniêcia pliku */
@@ -243,24 +237,12 @@ void SaveBuffer()
 						device_flags.sd_communication_error = 1;
 				}
 				else
-				{
 					/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
 					device_flags.sd_communication_error = 1;
-					
-// 					BlinkGreen(3, 200, 100);
-// 					_delay_ms(300);
-// 					BlinkRed(4, 200, 100);
- 				}
 			}
    			else
-   			{
    				/* ustawienie flagi b³êdu komunikacji z kart¹ SD */
 				device_flags.sd_communication_error = 1;
-				
-// 				BlinkGreen(3, 200, 100);
-// 				_delay_ms(300);
-// 				BlinkRed(2, 200, 100);
- 			}
 
 			/* b³¹d, który wyst¹pi³ podczas komunikacji z kart¹ SD, zg³aszany jest u¿ytkownikowi poprzez odpowiedni¹ sekwencjê migniêæ czerwonej diody */
 			if(device_flags.sd_communication_error)
@@ -273,7 +255,7 @@ void SaveBuffer()
 		
 		/* b³¹d przy próbie zamontowania systemu plików sygnalizowany jest jako brak karty SD */
 		default:
-			/* ustawienie flagi braku karty SD i flagi b³êdu komunikacji z kart¹ (dla odró¿nienia, ¿e brak karty zosta³ wykryty dopiero teraz) */
+			/* ustawienie flagi braku karty SD i flagi b³êdu komunikacji z kart¹ (dla odró¿nienia, ¿e brak karty zosta³ wykryty w tej funkcji) */
 			if(!device_flags.no_sd_card)
 				device_flags.sd_communication_error = device_flags.no_sd_card = 1;
 	}
@@ -308,7 +290,7 @@ void SaveEvent(char event)
 	{
 		buffer_index = BUFFER_SIZE;
 		
-		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi b³¹d,
 		 * urz¹dzenie zasygnalizuje to jako zape³nienie bufora przy braku karty SD */
 		device_flags.buffer_full = 1;
 		
@@ -472,7 +454,7 @@ ISR(INT2_vect)
 			
 			switch(set_rtc)
 			{
-				/* rozpoczêcie operacji zmiany daty i czasu w RTC oraz zakoñczenie ustawiania wszystkich sk³adowych i oczekiwanie na anulowanie/zatwierdzenie
+				/* rozpoczêcie operacji zmiany daty i czasu w RTC/zakoñczenie ustawiania wszystkich sk³adowych i oczekiwanie na anulowanie lub zatwierdzenie
 				 * zmian sygnalizowane jest trzykrotnym szybkim migniêciem zielonej diody */
 				case 0:
 				case 6:
@@ -497,7 +479,7 @@ ISR(INT2_vect)
 						 * nale¿y zapisaæ zawartoœæ bufora na kartê SD */
 						if(buffer_index > BUFFER_SIZE - 3)
 						{
-							/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+							/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi b³¹d,
 							 * urz¹dzenie zasygnalizuje to jako zape³nienie bufora przy braku karty SD */
 							device_flags.buffer_full = 1;
 							
@@ -552,10 +534,10 @@ ISR(INT2_vect)
 							sprintf(buffer[buffer_index], "%02d-%02d-%02d %02d:%02d:%02d", set_rtc_values[Years], set_rtc_values[Century_months], set_rtc_values[Days],
 								set_rtc_values[Hours], set_rtc_values[Minutes], set_rtc_values[VL_seconds]);
 						
-							/* przesuniêcie wskaŸnika w buforze o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
+							/* przesuniêcie wskaŸnika bufora o 1 pozycjê do przodu (normalnie robi to funkcja SaveEvent) */
 							++buffer_index;
 					
-							/* zapisanie w RTC nowych ustawieñ daty i godziny */
+							/* zapisanie w RTC nowych ustawieñ daty i czasu */
 							RtcSetTime(set_rtc_values);
 						
 							/* czyszczenie flagi vl */
@@ -569,7 +551,7 @@ ISR(INT2_vect)
 							BlinkRed(3, 100, 100);
 					}
 				
-					/* zakoñczenie ustawieñ daty i godziny dla RTC */
+					/* zakoñczenie ustawiania daty i godziny dla RTC */
 					set_rtc = -1;
 				break;
 				
@@ -676,12 +658,11 @@ ISR(TIMER1_OVF_vect)
 	/* zablokowanie funkcji SaveBuffer mo¿liwoœci w³¹czania przerwañ */
 	device_flags.interrupts = 0;
 	
-	/* Mog³o teraz wyst¹piæ przerwanie o wy¿szym priorytecie lub takowe mog³oby byæ ju¿ obs³ugiwane gdy wyst¹pi³o przerwanie z TIMER1.
-	 * Przerwania o wy¿szych priorytetach mog¹ (poœrednio lub bezpoœrednio) wywo³aæ SaveBuffer, a wtedy poni¿szy kod nie ma racji bytu.
-	 * Dlatego najpierw sprawdzamy, czy licznik zawiera wartoœæ mniejsz¹ ni¿ startowa, co oznacza jego przepe³nienie. */
-	if(TCNT1 < 36239)
+	/* Przerwania o wy¿szych priorytetach mog¹ (poœrednio lub bezpoœrednio) wywo³aæ SaveBuffer, a wtedy poni¿szy kod nie ma racji bytu.
+	 * Dlatego najpierw sprawdzamy czy w buforze s¹ dane do zapisania. */
+	if(buffer_index > 0)
 	{
-		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi³ b³¹d,
+		/* jeœli w trakcie operacji zapisu danych z bufora na kartê SD wyst¹pi b³¹d,
 		 * urz¹dzenie zasygnalizuje to jako zape³nienie bufora przy braku karty SD */
 		device_flags.buffer_full = 1;
 		
@@ -722,11 +703,11 @@ ISR(TIMER1_OVF_vect)
 				if(buffer_index < BUFFER_SIZE)
 					device_flags.buffer_full = 0;
 			}
-			
-			/* wy³¹czenie Timera/Countera 1 nastêpuje tylko wtedy, gdy ca³y bufor zostanie zapisany na kartê SD */
-			if(buffer_index == 0)
-				TCCR1B &= 250;
 		}
+		
+		/* wy³¹czenie Timera/Countera 1 nastêpuje tylko wtedy, gdy bufor zostanie opró¿niony */
+		if(buffer_index == 0)
+			TCCR1B &= 250;
 		
 		/* wyczyszczenie flagi b³êdu komunikacji z kart¹ SD */
 		device_flags.sd_communication_error = 0;
@@ -767,15 +748,15 @@ int main(void)
 	
 #pragma region UstawieniaPinow
 
-	/* domyœlne wartoœci w rejestrach DDRX i PORTX to 0, wpisujê wiêc tylko 1 tam, gdzie to potrzebne */
+	/* domyœlne wartoœci w rejestrach DDRX i PORTX to 0, wiêc poni¿ej wpisywane s¹ tylko 1 (tam gdzie to potrzebne) */
 	
-	/* PB7(SCK) wyjœciowy (zegar dla karty SD)			}
+	/* PB7(SCK)  wyjœciowy (zegar dla karty SD)			}
        PB6(MISO) wejœciowy (dane odbierane z karty SD)	} inicjalizacja w
-       PB5(MOSI) wyjœciowy (dane wysy³ane do karty SD)	} plku sdmm.c
-       PB4(SS) wyjœciowy (slave select)					}
+       PB5(MOSI) wyjœciowy (dane wysy³ane do karty SD)	} pliku sdmm.c
+       PB4(SS)   wyjœciowy (slave select)				}
        PB2(INT2) wejœciowy (przerwania zewnêtrzne wywo³ywane przyciskami)
-       PB1 wejœciowy (przycisk)
-       PB0 wejœciowy (przycisk)*/
+       PB1       wejœciowy (przycisk)
+       PB0       wejœciowy (przycisk)*/
 	PORTB = 1 << PB2 | 1 << PB1 | 1 << PB0;
 	
 	/* PC1 (SDA) i PC0 (SCL) s¹ wykorzystywane przez TWI, wiêc w³¹czam wewnêtrzne rezystory podci¹gaj¹ce */

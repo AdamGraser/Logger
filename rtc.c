@@ -1,3 +1,10 @@
+/*
+ *  rtc.c
+ *
+ *  Utworzono: 2014-12-01 ??22:08:33
+ *  Autor: Adam Gräser
+ */
+
 #include "rtc.h"
 
 
@@ -22,7 +29,7 @@ void TwiStart(void)
 
 void TwiStop(void)
 {
-	TWCR = (1 << TWINT)|(1 << TWEN)|(1 << TWSTO);
+	TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
 	while(!(TWCR & (1 << TWSTO)));
 }
 
@@ -69,7 +76,7 @@ void RtcGetTime (time *buf)
 	buf->years = TwiRead(0);
 	TwiStop();
 	
-	/* jeœli najstarszy bit rejestru VL_seconds (flaga VL) ma wartoœæ 1, to oznacza utratê dok³adnoœci pomiaru czasu,
+	/* jeœli najstarszy bit rejestru VL_seconds (flaga VL) ma wartoœæ 1, mo¿liwa jest utrata dok³adnoœci pomiaru czasu,
 	 * nale¿y wiêc ustawiæ odpowiedni¹ flagê globaln¹ programu */
 	if(buf->seconds & 128)
 		device_flags.vl = 1;

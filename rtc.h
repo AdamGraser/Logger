@@ -1,3 +1,10 @@
+/*
+ *  rtc.h
+ *
+ *  Utworzono: 2014-12-01 ??22:08:33
+ *  Autor: Adam Gräser
+ */
+
 #ifndef RTC_H
 #define RTC_H
 
@@ -7,7 +14,6 @@
 #include "utils.h"
 
 
-#pragma region ZmienneStaleMakra
 
 /**
  * Reprezentuje obiekt typu DateTime (przechowuje sk³adowe daty i czasu).
@@ -27,7 +33,6 @@ typedef struct {
 	uint8_t years;
 } time;
 
-#pragma endregion ZmienneStaleMakra
 
 
 /// Sygnalizowanie rozpoczêcia transmisji danych na magistralê I2C za pomoc¹ TWI
@@ -38,26 +43,26 @@ void TwiStop(void);
 
 /**
  * Przes³anie 1 bajta danych na magistralê I2C za pomoc¹ TWI
- * @param data dane do przes³ania
+ * @param data Dane do przes³ania
  */
 void TwiWrite(uint8_t data);
 
 /**
  * Odczytanie 1 bajta danych z magistrali I2C za pomoc¹ TWI
  * @param ack 1 = w³¹czenie bitu potwierdzenia (po tej operacji nast¹pi odczyt kolejnego bajta danych), 0 = wy³¹czenie bitu potwierdzenia (koniec czytania danych)
- * @return zawartoœæ rejestru danych TWDR (dane odczytane z magistrali)
+ * @return Zawartoœæ rejestru danych TWDR (dane odczytane z magistrali)
  */
 uint8_t TwiRead(uint8_t ack);
 
 /**
  * Pobranie bie¿¹cej daty i czasu z zegara RTC PCF8563P
- * @param buf adres struktury, do której zapisane maj¹ zostaæ data i czas pobrane z RTC
+ * @param buf Adres struktury, do której zapisane maj¹ zostaæ data i czas pobrane z RTC
  */
 void RtcGetTime (time *buf);
 
 /**
  * Wys³anie do zegara RTC PCF8563P nowych ustawieñ daty i czasu
- * @param data nowe ustawienia daty i czasu dla RTC
+ * @param data Nowe ustawienia daty i czasu dla RTC
  */
 void RtcSetTime (uint8_t *data);
 
