@@ -673,7 +673,7 @@ ISR(INT2_vect)
 			/* sygnalizacja przekroczenia zakresu bie¿¹cej sk³adowej */
 			if(set_rtc_cancelled)
 			{
-				BlinkRed(2, 100, 50);
+				BlinkRed(2, 100, 100);
 				set_rtc_cancelled = 0;
 			}
 			/* sygnalizacja inkrementacji bie¿¹cej sk³adowej */
