@@ -547,8 +547,13 @@ ISR(INT2_vect)
 							BlinkGreen(1, 1500, 100);
 						}
 						else
+						{
+							/* opóŸnienie, aby nast¹pi³ zauwa¿alny odstêp pomiêdzy migniêciami z SaveBuffer i tymi tutaj */
+							_delay_ms(300);
+							
 							/* sygnalizacja anulowania zmiany ustawieñ */
 							BlinkRed(3, 100, 100);
+						}
 					}
 				
 					/* zakoñczenie ustawiania daty i godziny dla RTC */
@@ -584,15 +589,25 @@ ISR(INT2_vect)
 			{
 				case 0:							/* VL_seconds */
 					if(set_rtc_values[VL_seconds] > 59)
+					{
 						set_rtc_values[VL_seconds] = 0;
+						/* aby wiedzieæ kiedy mign¹æ dwukrotnie */
+						set_rtc_cancelled = 0xFF;
+					}
 				break;
 				case 1:							/* Minutes */
 					if(set_rtc_values[Minutes] > 59)
+					{
 						set_rtc_values[Minutes] = 0;
+						set_rtc_cancelled = 0xFF;
+					}
 				break;
 				case 2:							/* Hours */
 					if(set_rtc_values[Hours] > 23)
+					{
 						set_rtc_values[Hours] = 0;
+						set_rtc_cancelled = 0xFF;
+					}
 				break;
 				case 3:							/* Days */
 					/* miesi¹ce z 31 dniami */
@@ -600,7 +615,10 @@ ISR(INT2_vect)
 					   set_rtc_values[Century_months] == 7 || set_rtc_values[Century_months] == 8 || set_rtc_values[Century_months] == 10 || set_rtc_values[Century_months] == 12)
 					{
 						if(set_rtc_values[Days] > 31)
+						{
 							set_rtc_values[Days] = 1;
+							set_rtc_cancelled = 0xFF;
+						}
 					}
 					/* luty */
 					else if(set_rtc_values[Century_months] == 2)
@@ -609,36 +627,58 @@ ISR(INT2_vect)
 						if((set_rtc_values[Years] % 4 == 0))
 						{
 							if(set_rtc_values[Days] > 29)
+							{
 								set_rtc_values[3] = 1;
+								set_rtc_cancelled = 0xFF;
+							}
 						}
 						/* w roku nieprzestêpnym */
 						else
 						{
 							if(set_rtc_values[Days] > 28)
+							{
 								set_rtc_values[Days] = 1;
+								set_rtc_cancelled = 0xFF;
+							}
 						}
 					}
 					/* miesi¹ce z 30 dniami */
 					else
 					{
 						if(set_rtc_values[Days] > 30)
+						{
 							set_rtc_values[Days] = 1;
+							set_rtc_cancelled = 0xFF;
+						}
 					}
 				break;
 				case 4:							/* Century_months */
 					if(set_rtc_values[Century_months] > 12)
+					{
 						set_rtc_values[Century_months] = 1;
+						set_rtc_cancelled = 0xFF;
+					}
 				break;
 				case 5:							/* Years */
 					if(set_rtc_values[Years] > 99)
+					{
 						set_rtc_values[Years] = 0;
+						set_rtc_cancelled = 0xFF;
+					}
 				break;
 			}
 
 #pragma endregion KontrolaZakresuDatyICzasu
 			
+			/* sygnalizacja przekroczenia zakresu bie¿¹cej sk³adowej */
+			if(set_rtc_cancelled)
+			{
+				BlinkRed(2, 100, 50);
+				set_rtc_cancelled = 0;
+			}
 			/* sygnalizacja inkrementacji bie¿¹cej sk³adowej */
-			BlinkRed(1, 200, 50);
+			else
+				BlinkRed(1, 200, 50);
 		}
 	}
 	
