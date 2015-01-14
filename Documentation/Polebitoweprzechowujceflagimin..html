@@ -1,0 +1,28 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+
+<HTML>
+<HEAD>
+   <TITLE>typedef struct  Pole bitowe przechowuj¹ce flagi min.</TITLE>
+   <META NAME="GENERATOR" CONTENT="DOC++ 3.4.10">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+
+<H2>typedef struct <A HREF="#DOC.DOCU"> Pole bitowe przechowuj¹ce flagi min.</A></H2></H2>
+<A NAME="DOC.DOCU"></A>
+<HR>
+<H2>Documentation</H2>
+<BLOCKQUOTE>
+Pole bitowe przechowuj¹ce flagi min. b³êdów.
+</BLOCKQUOTE>
+<DL><DT><DT><B>Fields:</B><DD><B>led1</B> -  Bie¿¹cy stan diody zielonej
+<BR><B>led2</B> -  Bie¿¹cy stan diody czerwonej
+<BR><B>vl</B> -  Wartoœæ bitu VL z rejestru VL_seconds w RTC (wartoœæ 1 informuje o mo¿liwoœci utracenia dok³adnoœci pomiaru czasu)
+<BR><B>no_sd_card</B> -  Flaga braku mo¿liwego do zamontowania systemu plików
+<BR><B>buffer_full</B> -  Flaga zape³nienia bufora przy jednoczesnym braku karty SD (jeœli no_sd_card == 1) lub flaga b³êdu zapisu danych na kartê SD
+<BR><B>sd_communication_error</B> -  Flaga b³êdu u¿ywana wewn¹trz funkcji @see SaveBuffer
+<BR><B>interrupts</B> -  Flaga determinuj¹ca mo¿liwoœæ w³¹czenia przerwañ
+<BR><B>reed_switch</B> -  Bie¿¹cy stan kontaktronu<BR><DD></DL><P><P><I><A HREF="index.html">Alphabetic index</A></I></P><HR>
+<BR>
+This page was generated with the help of <A HREF="http://docpp.sourceforge.net">DOC++</A>.
+</BODY>
+</HTML>

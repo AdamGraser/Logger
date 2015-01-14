@@ -1,0 +1,63 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+
+<HTML>
+<HEAD>
+   <TITLE>Table of Contents</TITLE>
+   <META NAME="GENERATOR" CONTENT="DOC++ 3.4.10">
+</HEAD>
+<BODY BGCOLOR="#ffffff">
+
+<H1>Table of Contents</H1>
+<H2>General stuff</H2>
+<UL>
+<LI><A HREF="General.html#Indeksy_set_rtc_values">Indeksy_set_rtc_values</A>
+</UL>
+<H2>Functions</H2>
+<UL>
+<LI><A HREF="ISR.2.html">ISR</A> <I> Obs³uga przerwañ z przycisków (PB2)<br> Ustawianie daty i czasu w zegarze czasu rzeczywistego.</I>
+<LI><A HREF="ISR.3.html">ISR</A> <I> Obs³uga przerwañ z 16-bitowego licznika Timer/Counter1<br> Przepe³nienie licznika po naliczaniu od wartoœci startowej 36239 oznacza up³yw oko³o 30 sekund i powoduje zapis danych z bufora na karcie SD.</I>
+<LI><A HREF="ISR.html">ISR</A> <I> Obs³uga przerwañ z kontaktronu (PD3)<br> Rejestrowanie zdarzenia otwarcia/zamkniêcia drzwi.</I>
+<LI><A HREF="RtcGetTime.html">RtcGetTime</A> <I> Pobranie bie¿¹cej daty i czasu z zegara RTC PCF8563P </I>
+<LI><A HREF="RtcSetTime.html">RtcSetTime</A> <I> Wys³anie do zegara RTC PCF8563P nowych ustawieñ daty i czasu </I>
+<LI><A HREF="SaveBuffer.html">SaveBuffer</A> <I> Zapisuje dane z bufora na kartê SD oraz przesuwa wskaŸnik bufora (buffer_index) na pocz¹tek<br> W razie potrzeby ustawia flagê braku karty SD lub flagê b³êdu komunikacji z kart¹ SD</I>
+<LI><A HREF="SaveEvent.html">SaveEvent</A> <I> Zapisuje we wskazywanym przez 'buffer_index' elemencie bufora rekord o zarejestrowanym przez urz¹dzenie zdarzeniu<br> Je¿eli bufor jest zape³niony, wymusza zapisanie jego zawartoœci na karcie SD<br> W razie potrzeby ustawia flagi braku karty SD i zape³nienia bufora.</I>
+<LI><A HREF="TwiRead.html">TwiRead</A> <I> Odczytanie 1 bajta danych z magistrali I2C za pomoc¹ TWI </I>
+<LI><A HREF="TwiStart.html">TwiStart</A> <I>Sygnalizowanie rozpoczêcia transmisji danych na magistralê I2C za pomoc¹ TWI</I>
+<LI><A HREF="TwiStop.html">TwiStop</A> <I>Sygnalizowanie zakoñczenia transmisji danych na magistralê I2C za pomoc¹ TWI</I>
+<LI><A HREF="TwiWrite.html">TwiWrite</A> <I> Przes³anie 1 bajta danych na magistralê I2C za pomoc¹ TWI </I>
+<LI><A HREF="get_fattime.html">get_fattime</A> <I> Pobiera bie¿¹c¹ datê i czas z RTC, zapisuje je wszystkie do pojedynczej wartoœæ typu DWORD i zwraca<br> Funkcja ta u¿ywana jest przez FatFS.</I>
+<LI><A HREF="main.html">main</A> <I>Funkcja g³ówna programu</I>
+</UL>
+<H2>Variables</H2>
+<UL>
+<LI><A HREF="FatFs.html">FatFs</A> <I>Przestrzeñ robocza FatFS, potrzebna dla ka¿dego wolumenu</I>
+<LI><A HREF="Fil.html">Fil</A> <I>Obiekt (uchwyt do) pliku, potrzebny dla ka¿dego otwartego pliku</I>
+<LI><A HREF="buffer.html">buffer</A> <I>Bufor przechowuj¹cy do 20 rekordów informacyjnych o zarejestrowanych zdarzeniach</I>
+<LI><A HREF="buffer_index.html">buffer_index</A> <I>Przechowuje indeks elementu bufora, do którego zapisany zostanie najnowszy rekord o zarejestrowanym zdarzeniu</I>
+<LI><A HREF="device_flags.html">device_flags</A> <I>Flagi b³êdów i bie¿¹cego stanu wybranych elementów urz¹dzenia</I>
+<LI><A HREF="events_names.html">events_names</A> <I>Tablica nazw zdarzeñ wykrywanych przez urz¹dzenie, u¿ywana przy zapisie danych z bufora na kartê SD</I>
+<LI><A HREF="now.html">now</A> <I>Przechowuje datê i czas pobrane z RTC</I>
+<LI><A HREF="set_rtc.html">set_rtc</A> <I> Etap operacji zmiany ustawieñ daty i czasu w RTC<br> Wartoœæ -1 oznacza tryb normalny, wartoœci od 0 do 5 to okreœlanie wartoœci kolejnych elementów daty i czasu, wartoœæ 6 to oczekiwanie na potwierdzenie b¹dŸ anulowanie zmiany ustawieñ daty i czasu w RTC</I>
+<LI><A HREF="set_rtc_cancelled.html">set_rtc_cancelled</A> <I>Determinuje czy zmiana ustawieñ daty i godziny zosta³a anulowana czy nie</I>
+<LI><A HREF="set_rtc_values.html">set_rtc_values</A> <I> Wartoœci kolejnych rejestrów RTC, od VL_seconds [0] do Years [5] (z pominiêciem dni tygodnia), jakie maj¹ zostaæ ustawione w RTC po zatwierdzeniu operacji zmiany tych ustawieñ</I>
+</UL>
+<H2>Macros</H2>
+<UL>
+<LI><A HREF="BUFFER_SIZE.html">BUFFER_SIZE</A> <I>Rozmiar bufora (liczba 20-bajtowych elementów do przechowywania rekordów o zdarzeniach)</I>
+<LI><A HREF="BlinkBoth.html">BlinkBoth</A> <I> Miga obiema diodami wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.</I>
+<LI><A HREF="BlinkGreen.html">BlinkGreen</A> <I> Miga zielon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.</I>
+<LI><A HREF="BlinkRed.html">BlinkRed</A> <I> Miga czerwon¹ diod¹ wskazan¹ iloœæ razy, z podanymi czasami œwiecenia i nieœwiecenia.</I>
+<LI><A HREF="F_CPU.html">F_CPU</A> <I>Czêstotliwoœæ taktowania procesora.</I>
+<LI><A HREF="RTCDefaultValues.html">RTCDefaultValues</A> <I>Ustawia wartoœci domyœlne w tablicy ustawieñ daty i godziny dla RTC</I>
+<LI><A HREF="delay.html">delay</A> <I> Wywo³uje funkcjê _delay_ms z biblioteki utils/delayh 'd' razy, podaj¹c jako argument wartoœæ 't'<br> Po ka¿dym wywo³aniu opóŸnienia funkcja ta w³¹cza ponownie przerwania (_delay_ms wy³¹cza przerwania).</I>
+</UL>
+<H2>Typedefs</H2>
+<UL>
+<LI><A HREF="Polebitoweprzechowujceflagimin..html"> Pole bitowe przechowuj¹ce flagi min.</A>
+<LI><A HREF="ReprezentujeobiekttypuDateTimeprzechowujeskadowedatyiczasu..html"> Reprezentuje obiekt typu DateTime (przechowuje sk³adowe daty i czasu).</A>
+</UL>
+<HR>
+<BR>
+This page was generated with the help of <A HREF="http://docpp.sourceforge.net">DOC++</A>.
+</BODY>
+</HTML>
